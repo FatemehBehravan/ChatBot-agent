@@ -1,0 +1,63 @@
+# Stage 1: the API serves the stub provider. No .env file is required.
+# `docker compose up --build` is the documented way to chat.
+# Optional local model: `docker compose --profile local-llm up --build`
+# then `docker compose exec ollama ollama pull qwen2.5:7b-instruct`.
+# Stage 1 does not call that model. Keep APP_PROVIDER=stub until stage 2.
+
+name: alopeyk-agent
+
+services:
+  app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_PROVIDER: ${APP_PROVIDER:-stub}
+      DATA_DIR: /app/data
+      STATE_DIR: /app/.state
+      CONFIG_DIR: /app/config
+      DATABASE_URL: ${DATABASE_URL:-}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-http://host.docker.internal:11434/v1}
+      LOCAL_API_KEY: ${LOCAL_API_KEY:-not-needed}
+      LOCAL_MODEL: ${LOCAL_MODEL:-qwen2.5:7b-instruct}
+      REMOTE_BASE_URL: ${REMOTE_BASE_URL:-https://api.example-provider.com/v1}
+      REMOTE_API_KEY: ${REMOTE_API_KEY:-replace-me}
+      REMOTE_MODEL: ${REMOTE_MODEL:-replace-with-a-low-cost-model}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+    ports: ["8000:8000"]
+    volumes:
+      - app_state:/app/.state
+      - ./data:/app/data:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      ollama:
+        condition: service_healthy
+        required: false
+
+  ollama:
+    image: ollama/ollama:0.40.16
+    profiles: ["local-llm"]
+    ports: ["11434:11434"]
+    volumes: [ollama_models:/root/.ollama]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  app_state: {}
+  ollama_models: {}
