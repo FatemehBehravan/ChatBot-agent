@@ -1,0 +1,9 @@
+[
+  {"user_id": "u-anon", "role": "anonymous", "display_name": "Guest"},
+  {"user_id": "u-cust-1001", "role": "customer", "display_name": "Customer C-1001", "customer_id": "C-1001"},
+  {"user_id": "u-cust-1002", "role": "customer", "display_name": "Customer C-1002", "customer_id": "C-1002"},
+  {"user_id": "u-cust-1003", "role": "customer", "display_name": "Customer C-1003", "customer_id": "C-1003"},
+  {"user_id": "u-cust-1004", "role": "customer", "display_name": "Customer C-1004", "customer_id": "C-1004"},
+  {"user_id": "u-support-01", "role": "support_agent", "display_name": "Support Agent 01"},
+  {"user_id": "u-ops-01", "role": "ops_manager", "display_name": "Operations Manager 01"}
+]

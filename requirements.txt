@@ -1,0 +1,8 @@
+# Runtime and the in-container test runner. Tests must pass with networking disabled,
+# so pytest is installed in the image on purpose.
+fastapi==0.115.6
+uvicorn==0.32.1
+pydantic==2.10.4
+PyYAML==6.0.2
+httpx==0.28.1
+pytest==8.3.4

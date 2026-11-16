@@ -1,0 +1,9 @@
+[
+  {"id": "O-5001", "customer_id": "C-1001", "shipment_ids": ["S-9001"], "items": [{"sku": "TXT-ROLL-01", "qty": 40}], "total_value": 3200.00, "currency": "EUR", "status": "shipped", "created": "2026-11-10"},
+  {"id": "O-5002", "customer_id": "C-1002", "shipment_ids": ["S-9002"], "items": [{"sku": "HOM-LAMP-07", "qty": 1}], "total_value": 89.90, "currency": "EUR", "status": "delivered", "created": "2026-11-08"},
+  {"id": "O-5003", "customer_id": "C-1003", "shipment_ids": ["S-9003"], "items": [{"sku": "IND-BEAR-22", "qty": 300}], "total_value": 18450.00, "currency": "EUR", "status": "shipped", "created": "2026-10-28"},
+  {"id": "O-5004", "customer_id": "C-1001", "shipment_ids": ["S-9004", "S-9008"], "items": [{"sku": "TXT-ROLL-02", "qty": 25}, {"sku": "TXT-ZIP-05", "qty": 500}], "total_value": 2750.00, "currency": "EUR", "status": "partially_delivered", "created": "2026-11-05"},
+  {"id": "O-5005", "customer_id": "C-1003", "shipment_ids": ["S-9005", "S-9007"], "items": [{"sku": "IND-BEAR-22", "qty": 120}, {"sku": "IND-SEAL-03", "qty": 800}], "total_value": 9120.00, "currency": "EUR", "status": "shipped", "created": "2026-11-09"},
+  {"id": "O-5006", "customer_id": "C-1002", "shipment_ids": ["S-9006"], "items": [{"sku": "HOM-CHAIR-11", "qty": 2}], "total_value": 240.00, "currency": "EUR", "status": "shipped", "created": "2026-11-11"},
+  {"id": "O-5007", "customer_id": "C-1004", "shipment_ids": ["S-9009"], "items": [{"sku": "HOM-RUG-04", "qty": 1}], "total_value": 410.00, "currency": "EUR", "status": "shipped", "created": "2026-11-07"}
+]

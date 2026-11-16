@@ -1,0 +1,16 @@
+{
+  "warehouses": [
+    {"id": "WH-AMS", "name": "Amsterdam Hub", "country": "NL"},
+    {"id": "WH-RTM", "name": "Rotterdam Port Warehouse", "country": "NL"}
+  ],
+  "stock": [
+    {"warehouse_id": "WH-AMS", "sku": "HOM-LAMP-07", "description": "Desk lamp", "on_hand": 140, "reserved": 12, "reorder_point": 50},
+    {"warehouse_id": "WH-AMS", "sku": "HOM-CHAIR-11", "description": "Dining chair", "on_hand": 18, "reserved": 6, "reorder_point": 25},
+    {"warehouse_id": "WH-AMS", "sku": "IND-BEAR-22", "description": "Industrial bearing 22mm", "on_hand": 2200, "reserved": 420, "reorder_point": 500},
+    {"warehouse_id": "WH-AMS", "sku": "IND-SEAL-03", "description": "Rubber seal ring", "on_hand": 9000, "reserved": 800, "reorder_point": 2000},
+    {"warehouse_id": "WH-RTM", "sku": "TXT-ROLL-01", "description": "Cotton fabric roll", "on_hand": 310, "reserved": 40, "reorder_point": 100},
+    {"warehouse_id": "WH-RTM", "sku": "TXT-ROLL-02", "description": "Linen fabric roll", "on_hand": 90, "reserved": 25, "reorder_point": 60},
+    {"warehouse_id": "WH-RTM", "sku": "TXT-ZIP-05", "description": "Zipper 5mm", "on_hand": 12000, "reserved": 500, "reorder_point": 3000},
+    {"warehouse_id": "WH-RTM", "sku": "HOM-RUG-04", "description": "Wool rug", "on_hand": 33, "reserved": 1, "reorder_point": 10}
+  ]
+}

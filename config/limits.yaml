@@ -1,0 +1,39 @@
+# Starter limits. Tune with evidence and explain in DELIVERY.md.
+
+token_limits:
+  per_request:
+    max_input_tokens: 6000
+    max_output_tokens: 1024
+  per_session:
+    max_total_tokens: 60000
+  per_user:
+    max_total_tokens_per_window: 200000
+    window: rolling_24h_equivalent    # choose your own windowing; document it
+
+cost_limits:
+  per_session_usd: 0.10
+  per_user_usd_per_window: 0.50
+
+rate_limits:
+  requests_per_minute_per_user: 20
+  max_concurrent_requests_per_user: 2
+
+# Fractions of each model's context window. TODO(candidate): validate, then adapt per model.
+context_budget:
+  system_prompt: 0.10
+  tool_schemas: 0.10
+  history: 0.35
+  tool_results: 0.20
+  retrieved_docs: 0.10
+  output_reserve: 0.15
+
+summarization:
+  trigger_ratio: 0.75      # start compressing history when it uses this share of its budget
+  keep_last_turns: 4
+
+tool_output:
+  max_tokens_per_result: 800
+
+agent_loop:
+  max_steps: 6
+  max_identical_tool_calls: 2

@@ -1,0 +1,46 @@
+# Starter model configuration. You may change the schema; document it in DELIVERY.md.
+# Values below are placeholders: verify the real context window / limits of YOUR models.
+
+providers:
+  local:
+    type: openai_compatible
+    base_url: ${LOCAL_BASE_URL}
+    api_key: ${LOCAL_API_KEY}
+    model: ${LOCAL_MODEL}
+    context_window: 8192          # configured server context, not the model's theoretical max
+    max_output_tokens: 1024
+    supports_tool_calling: true   # verify empirically; set false to force prompt-based tool use
+    timeout_seconds: 60
+    data_policy: full             # may receive unmasked PII
+
+  remote:
+    type: openai_compatible
+    base_url: ${REMOTE_BASE_URL}
+    api_key: ${REMOTE_API_KEY}
+    model: ${REMOTE_MODEL}
+    context_window: 128000
+    max_output_tokens: 2048
+    supports_tool_calling: true
+    timeout_seconds: 30
+    data_policy: masked_only      # PII must be masked before leaving the machine
+    pricing:                      # fill from your provider's current price list
+      input_per_1m_tokens: null
+      output_per_1m_tokens: null
+
+  stub:
+    type: stub                    # deterministic fake for offline tests
+    context_window: 4096
+    max_output_tokens: 512
+    supports_tool_calling: true
+    data_policy: full
+
+embeddings:                       # optional; leave unused if you choose keyword/BM25 retrieval
+  provider: ${EMBEDDING_PROVIDER}
+  base_url: ${EMBEDDING_BASE_URL}
+  model: ${EMBEDDING_MODEL}
+
+routing:
+  default_provider: local
+  fallback_order: [local, remote]
+  # TODO(candidate): design the policy (rules, scoring, thresholds, circuit breaker).
+  rules: []

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "CRR-EXPRESS", "name": "Continental Road Express", "mode": "road",
+    "lanes": [
+      {"from": "NL", "to": "DE", "rate_per_kg_eur": 0.42, "min_charge_eur": 45, "transit_days": 2},
+      {"from": "NL", "to": "FR", "rate_per_kg_eur": 0.55, "min_charge_eur": 55, "transit_days": 3},
+      {"from": "NL", "to": "NL", "rate_per_kg_eur": 0.30, "min_charge_eur": 25, "transit_days": 1}
+    ],
+    "sla_on_time_pct": 94.5
+  },
+  {
+    "id": "LASTMILE-GO", "name": "LastMile Go", "mode": "parcel",
+    "lanes": [
+      {"from": "NL", "to": "NL", "rate_per_kg_eur": 1.10, "min_charge_eur": 4.5, "transit_days": 1}
+    ],
+    "sla_on_time_pct": 97.2
+  },
+  {
+    "id": "OCEAN-LINE", "name": "OceanLine Global", "mode": "sea",
+    "lanes": [
+      {"from": "CN", "to": "NL", "rate_per_kg_eur": 0.12, "min_charge_eur": 300, "transit_days": 27},
+      {"from": "NL", "to": "AE", "rate_per_kg_eur": 0.18, "min_charge_eur": 120, "transit_days": 19}
+    ],
+    "sla_on_time_pct": 88.0
+  }
+]

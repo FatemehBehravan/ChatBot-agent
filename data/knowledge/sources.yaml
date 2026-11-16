@@ -1,0 +1,16 @@
+# Starter crawl configuration. Adjust, but keep it polite.
+base_url: https://alopeyk.com/
+allowed_domains: [alopeyk.com]
+respect_robots_txt: true
+user_agent: "assessment-ingest-bot (contact: <your-email>)"
+crawl_delay_seconds: 2
+max_pages: 300
+max_depth: 3
+discovery:
+  - sitemap.xml            # only if robots.txt permits
+  - navigation links to the blog and the help / education sections
+include_languages: [fa, en]
+exclude_patterns:
+  - "/login"
+  - "/cart"
+  - "?utm_"

@@ -1,0 +1,39 @@
+# Starter RBAC definition. Extend and tighten as you see fit; document changes in DELIVERY.md.
+# scope: which records a role may see.
+#   none          -> no per-customer records
+#   own_customer  -> only records whose customer_id equals the session's customer_id
+#   all           -> all records
+# pii: how personal data in tool results is presented to the role.
+#   own_full | masked | none
+
+roles:
+  anonymous:
+    description: Not signed in. General knowledge and aggregate statistics only.
+    tools: [search_knowledge_base, estimate_delivery_time, estimate_price_range]
+    scope: none
+    pii: none
+
+  customer:
+    description: Signed-in customer. Sees only their own orders.
+    tools: [get_order_status, list_my_orders, estimate_delivery_time, estimate_price_range,
+            search_knowledge_base, create_support_ticket, request_order_cancellation]
+    scope: own_customer
+    pii: own_full
+    confirmation_required: [create_support_ticket, request_order_cancellation]
+
+  support_agent:
+    description: Customer-support staff. Can look up any order and act on a customer's behalf.
+    tools: [get_order_status, search_orders, estimate_delivery_time, estimate_price_range,
+            search_knowledge_base, create_support_ticket, request_order_cancellation]
+    scope: all
+    pii: masked          # phone/name masked in tool results and replies
+    confirmation_required: [create_support_ticket, request_order_cancellation]
+
+  ops_manager:
+    description: Operations manager. Cross-customer visibility for operations; no customer PII.
+    tools: [get_order_status, search_orders, estimate_delivery_time, estimate_price_range,
+            search_knowledge_base, create_support_ticket]
+    # optional bonus tool for this role: run_readonly_analytics
+    scope: all
+    pii: none
+    confirmation_required: [create_support_ticket]
