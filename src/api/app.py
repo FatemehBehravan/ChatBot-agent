@@ -1,10 +1,11 @@
-"""HTTP API: health check and stub chat."""
+"""HTTP API: health check, chat, and the single-page UI."""
 
 import json
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from src.agent.chat import SessionForbiddenError, SessionNotFoundError, handle_chat
 from src.agent.session import SessionStore
@@ -18,6 +19,7 @@ from src.settings import AppConfig
 from src.stateprep import prepare_state
 
 logger = logging.getLogger(__name__)
+_PAGE = Path(__file__).resolve().parents[1] / "ui" / "index.html"
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -42,9 +44,16 @@ def create_app(config: AppConfig) -> FastAPI:
     def health() -> HealthResponse:
         return HealthResponse(status="ok", provider=config.app_provider, model=config.provider.model or "stub")
 
-    @app.get("/")
-    def root() -> dict[str, str]:
-        return {"service": "alopeyk-agent", "health": "/health", "chat": "/v1/chat"}
+    @app.get("/", response_class=HTMLResponse)
+    def home() -> HTMLResponse:
+        return HTMLResponse(_PAGE.read_text(encoding="utf-8"))
+
+    @app.get("/v1/users")
+    def list_users() -> list[dict[str, str]]:
+        return [
+            {"user_id": user.user_id, "role": user.role, "display_name": user.display_name}
+            for user in config.users.values()
+        ]
 
     @app.post("/v1/chat", response_model=ChatResponse)
     def chat(body: ChatRequest) -> ChatResponse:
@@ -82,6 +91,7 @@ def create_app(config: AppConfig) -> FastAPI:
             reply=outcome.reply,
             provider=outcome.provider,
             model=outcome.model,
+            tools=list(outcome.tools),
         )
 
     return app

@@ -28,6 +28,7 @@ class ChatOutcome:
     reply: str
     provider: str
     model: str
+    tools: tuple[str, ...] = ()
 
 
 def handle_chat(
@@ -70,6 +71,7 @@ def handle_chat(
         reply=result.reply,
         provider=config.app_provider,
         model=client.model,
+        tools=tuple(result.tool_names),
     )
 
 

@@ -1,1 +1,1 @@
-"""Optional UI. Stage 1 is the HTTP API only."""
+"""Single-page chat UI served by the API at /."""

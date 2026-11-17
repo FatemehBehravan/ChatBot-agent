@@ -53,6 +53,8 @@ Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER
 
 The stub runs the same tool loop as the other providers. A delivery-time question is answered from the orders snapshot and states the sample size. A help question cites a fixture page. A support ticket or a cancellation waits until the next message confirms it.
 
+Open [http://localhost:8000/](http://localhost:8000/) for the chat page. It uses the same API. Persian text is right-aligned, and the typeface is a local system font, so the page does not fetch anything from the network. The user menu only switches the synthetic identity sent as `user_id`.
+
 On startup the snapshot CSVs are loaded into SQLite if they changed, and the fixture knowledge pages are indexed. Crawling the public site is separate and uses the network:
 
 ```bash
@@ -223,7 +225,7 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] Multi-turn sessions with IDs and persistence.
 - [x] Graceful handling of: tool failure, malformed tool calls from a weak model, ambiguous requests (ask a clarifying question), out-of-scope requests.
 - [x] Responds in the user's language (Persian or English). Answers grounded in data state their basis (sample size, source) and never present statistics as guarantees.
-- [ ] Optional: UI per section 7.
+- [x] Optional: UI per section 7.
 
 ### Stage 6 — Context window and token management
 - [ ] Token counting per model (exact tokenizer, or a documented approximation with a safety margin that accounts for Persian text).

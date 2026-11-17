@@ -46,6 +46,7 @@ class ChatResponse(BaseModel):
     reply: str
     provider: str
     model: str
+    tools: list[str] = Field(default_factory=list)
 
 
 class HealthResponse(BaseModel):
