@@ -1,1 +1,1 @@
-"""Model providers. Stage 1 ships the deterministic stub only."""
+"""Model providers. The active one is chosen with APP_PROVIDER."""

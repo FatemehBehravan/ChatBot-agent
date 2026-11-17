@@ -35,11 +35,19 @@ def test_missing_environment_variable_fails_fast(tmp_path, monkeypatch):
         load_config()
 
 
-def test_non_stub_provider_is_rejected(tmp_path, monkeypatch):
+def test_provider_switch_is_configuration_only(tmp_path, monkeypatch):
     apply_env(monkeypatch, tmp_path)
     monkeypatch.setenv("APP_PROVIDER", "local")
-    with pytest.raises(ConfigError, match="Stage 1 only serves the stub provider"):
-        load_config()
+    local = load_config()
+    assert local.app_provider == "local"
+    assert local.provider.type == "openai_compatible"
+    assert local.provider.model == "qwen2.5:7b-instruct"
+
+    monkeypatch.setenv("APP_PROVIDER", "remote")
+    remote = load_config()
+    assert remote.provider.type == "openai_compatible"
+    assert remote.provider.model == "replace-with-a-low-cost-model"
+    assert remote.provider.context_window == 128000
 
 
 def test_unknown_provider_is_rejected(tmp_path, monkeypatch):

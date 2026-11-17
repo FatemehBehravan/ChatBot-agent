@@ -1,13 +1,14 @@
-"""One-turn stub chat with a persisted session.
+"""One-turn chat with a persisted session.
 
 The tool loop, step limit, and model routing are later stages. This module
-stores the conversation and asks the stub provider for a reply.
+stores the conversation and asks the configured provider for a reply.
 """
 
 from dataclasses import dataclass
 
 from src.agent.session import SessionStore
-from src.llm.stub import StubModel
+from src.llm.base import LLMClient
+from src.llm.types import ChatMessage
 from src.security.identity import UnknownUserError
 from src.settings import AppConfig
 
@@ -33,6 +34,7 @@ class ChatOutcome:
 def handle_chat(
     config: AppConfig,
     store: SessionStore,
+    client: LLMClient,
     *,
     message: str,
     session_id: str | None,
@@ -50,15 +52,16 @@ def handle_chat(
         if session.user_id != identity.user_id:
             raise SessionForbiddenError(session_id)
     session.messages.append({"role": "user", "content": message})
-    model = StubModel(config.provider.model or "stub")
-    reply = model.complete([{"role": "system", "content": config.system_prompt}, *session.messages])
-    session.messages.append({"role": "assistant", "content": reply})
+    messages = [ChatMessage(role="system", content=config.system_prompt)]
+    messages.extend(ChatMessage(role=item["role"], content=item["content"]) for item in session.messages)
+    completion = client.complete(messages)
+    session.messages.append({"role": "assistant", "content": completion.content})
     store.save(session)
     return ChatOutcome(
         session_id=session.session_id,
         user_id=identity.user_id,
         role=identity.role,
-        reply=reply,
+        reply=completion.content,
         provider=config.app_provider,
-        model=model.model_name,
+        model=completion.model,
     )

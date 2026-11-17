@@ -159,10 +159,10 @@ UI **الزامی نیست** — CLI یا HTTP API کافی است. اگر UI م
 - [x] با کلون تازه و فقط با `docker compose up --build` و README بتوان با مدل stub چت کرد.
 
 ### مرحله ۲ — لایه‌ی ارائه‌دهنده‌ی LLM
-- [ ] یک interface مشترک: chat completion، streaming اختیاری، شمارش توکن، قابلیت‌های اعلام‌شده (context window، حداکثر خروجی، پشتیبانی از tool calling).
-- [ ] آداپتورها: مدل لوکال، مدل API و یک stub قطعی (deterministic) برای تست.
-- [ ] خطاهای نرمال‌شده (timeout، rate limit، auth، context overflow، پاسخ ناقص) با retry/backoff (همراه jitter) و timeout برای هر فراخوانی.
-- [ ] تعویض ارائه‌دهنده فقط با تغییر پیکربندی ممکن باشد.
+- [x] یک interface مشترک: chat completion، streaming اختیاری، شمارش توکن، قابلیت‌های اعلام‌شده (context window، حداکثر خروجی، پشتیبانی از tool calling).
+- [x] آداپتورها: مدل لوکال، مدل API و یک stub قطعی (deterministic) برای تست.
+- [x] خطاهای نرمال‌شده (timeout، rate limit، auth، context overflow، پاسخ ناقص) با retry/backoff (همراه jitter) و timeout برای هر فراخوانی.
+- [x] تعویض ارائه‌دهنده فقط با تغییر پیکربندی ممکن باشد.
 
 ### مرحله ۳ — لایه‌ی داده و پایگاه دانش
 - [ ] فایل‌های CSV اسنپ‌شات با یک loader ایدمپوتنت در دیتابیس انتخابی شما بارگذاری شوند؛ ایندکس‌ها کوئری‌های موردنیاز را کارا پشتیبانی کنند.

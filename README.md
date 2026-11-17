@@ -49,7 +49,7 @@ docker compose --profile local-llm up --build
 docker compose exec ollama ollama pull qwen2.5:7b-instruct
 ```
 
-Copy `.env.example` to `.env` when you want to override a setting. Keep `APP_PROVIDER=stub` until a later stage adds the other providers.
+Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER` chooses the model: `stub` (default, no network), `local`, or `remote`. Restart the container after changing it.
 
 ## 1. Background
 
@@ -190,10 +190,10 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] A fresh clone can chat with the stub model using only `docker compose up --build` and the README.
 
 ### Stage 2 — LLM provider layer
-- [ ] A common client interface: chat completion, optional streaming, token counting, declared capabilities (context window, max output, tool-calling support).
-- [ ] Adapters: local model, hosted API model, and a deterministic stub for tests.
-- [ ] Normalized errors (timeout, rate limit, auth, context overflow, malformed response) with retry/backoff (with jitter) and per-call timeouts.
-- [ ] Switching provider requires configuration changes only.
+- [x] A common client interface: chat completion, optional streaming, token counting, declared capabilities (context window, max output, tool-calling support).
+- [x] Adapters: local model, hosted API model, and a deterministic stub for tests.
+- [x] Normalized errors (timeout, rate limit, auth, context overflow, malformed response) with retry/backoff (with jitter) and per-call timeouts.
+- [x] Switching provider requires configuration changes only.
 
 ### Stage 3 — Data layer and knowledge base
 - [ ] The snapshot CSVs are loaded into your chosen database by an idempotent loader; indexes support the required queries efficiently.

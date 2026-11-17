@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from src.agent.chat import SessionForbiddenError, SessionNotFoundError, handle_chat
 from src.agent.session import SessionStore
 from src.api.schemas import ChatRequest, ChatResponse, HealthResponse
+from src.llm.errors import LLMError
+from src.llm.factory import build_client
 from src.security.identity import UnknownUserError
 from src.settings import AppConfig
 from src.stateprep import prepare_state
@@ -17,8 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class UTF8JSONResponse(JSONResponse):
-    # Starlette only adds a charset to text/* responses. Windows PowerShell
-    # otherwise decodes application/json as Latin-1 and Persian becomes mojibake.
     media_type = "application/json; charset=utf-8"
 
     def render(self, content: object) -> bytes:
@@ -30,6 +30,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app = FastAPI(title="Alopeyk Delivery Assistant", version="0.1.0", default_response_class=UTF8JSONResponse)
     app.state.config = config
     app.state.sessions = SessionStore(config.state_dir / "sessions")
+    app.state.client = build_client(config)
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -45,10 +46,13 @@ def create_app(config: AppConfig) -> FastAPI:
             outcome = handle_chat(
                 config,
                 app.state.sessions,
+                app.state.client,
                 message=body.message,
                 session_id=body.session_id,
                 user_id=body.user_id,
             )
+        except LLMError as exc:
+            raise HTTPException(status_code=502, detail={"error": type(exc).__name__, "message": str(exc)}) from exc
         except UnknownUserError as exc:
             raise HTTPException(
                 status_code=400,

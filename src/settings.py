@@ -349,16 +349,10 @@ def _expand_string(value: str, source: str) -> str:
 def _active_provider(models: ModelsConfig) -> str:
     raw = os.environ.get("APP_PROVIDER", "stub").strip()
     if not raw:
-        raise ConfigError("APP_PROVIDER is empty. Stage 1 requires APP_PROVIDER=stub.")
-    provider = models.providers.get(raw)
-    if provider is None:
+        raise ConfigError("APP_PROVIDER is empty. Set it to stub, local, or remote.")
+    if raw not in models.providers:
         known = ", ".join(sorted(models.providers))
         raise ConfigError(f"APP_PROVIDER={raw!r} is not defined. Known providers: {known}.")
-    if provider.type != "stub":
-        raise ConfigError(
-            f"APP_PROVIDER={raw!r} has type {provider.type!r}. "
-            "Stage 1 only serves the stub provider. Set APP_PROVIDER=stub."
-        )
     return raw
 
 

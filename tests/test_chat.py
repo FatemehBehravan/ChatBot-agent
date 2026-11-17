@@ -4,25 +4,26 @@ import uuid
 from fastapi.testclient import TestClient
 
 from src.api.app import create_app
-from src.llm.stub import StubModel
+from src.llm.stub import StubClient
+from src.llm.types import ChatMessage
 
 
 def test_stub_replies_from_the_latest_user_message():
-    reply = StubModel().complete(
+    reply = StubClient().complete(
         [
-            {"role": "system", "content": "پاسخ فارسی بده"},
-            {"role": "user", "content": "hello"},
+            ChatMessage(role="system", content="پاسخ فارسی بده"),
+            ChatMessage(role="user", content="hello"),
         ]
     )
-    assert reply == 'Stub reply: your message was received. "hello"'
+    assert reply.content == 'Stub reply: your message was received. "hello"'
 
 
 def test_stub_replies_in_persian_and_is_deterministic():
-    messages = [{"role": "user", "content": "سلام"}]
-    first = StubModel().complete(messages)
-    second = StubModel().complete(messages)
-    assert first == second
-    assert first.startswith("پاسخ stub:")
+    messages = [ChatMessage(role="user", content="سلام")]
+    first = StubClient().complete(messages)
+    second = StubClient().complete(messages)
+    assert first.content == second.content
+    assert first.content.startswith("پاسخ stub:")
 
 
 def test_health(config):
