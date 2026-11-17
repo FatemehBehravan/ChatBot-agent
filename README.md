@@ -210,10 +210,10 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] Retrieval quality checked on a small question set you write (hit rate reported in your delivery document).
 
 ### Stage 4 — Domain tools
-- [ ] Tools covering at least: `get_order_status`, `list_my_orders`, `search_orders` (staff only), `estimate_delivery_time`, `estimate_price_range`, `search_knowledge_base`, `create_support_ticket`, `request_order_cancellation`.
-- [ ] `estimate_delivery_time` computes **statistics from the orders snapshot** (see `data/README.md` for metric definitions): inputs distance, optional vehicle type, city and order-creation time window; returns median, typical range (e.g. P80), sample size, the distance window and filters actually used, and separately the in-transit time and total time since order creation. It must report insufficient data instead of extrapolating.
-- [ ] Inputs/outputs defined by validated schemas (parameterized queries only — no string-built SQL); outputs are size-bounded; errors come back as structured results the model can act on.
-- [ ] Write actions are idempotent and require an explicit confirmation step from the user; cancellation is only allowed before pickup.
+- [x] Tools covering at least: `get_order_status`, `list_my_orders`, `search_orders` (staff only), `estimate_delivery_time`, `estimate_price_range`, `search_knowledge_base`, `create_support_ticket`, `request_order_cancellation`.
+- [x] `estimate_delivery_time` computes **statistics from the orders snapshot** (see `data/README.md` for metric definitions): inputs distance, optional vehicle type, city and order-creation time window; returns median, typical range (e.g. P80), sample size, the distance window and filters actually used, and separately the in-transit time and total time since order creation. It must report insufficient data instead of extrapolating.
+- [x] Inputs/outputs defined by validated schemas (parameterized queries only — no string-built SQL); outputs are size-bounded; errors come back as structured results the model can act on.
+- [x] Write actions are idempotent and require an explicit confirmation step from the user; cancellation is only allowed before pickup.
 - [ ] Optional bonus: a read-only, guarded analytics tool for operations managers (query allow-listing, row/time limits, no writes).
 
 ### Stage 5 — Agent loop, chat and (optional) UI
