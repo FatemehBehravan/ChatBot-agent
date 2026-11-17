@@ -1,14 +1,11 @@
 """Deterministic offline model used by a fresh clone and by the test suite."""
 
-import re
 from collections.abc import Iterator
 
+from src.llm.stub_policy import plan
 from src.llm.tokens import estimate_tokens
 from src.llm.types import Capabilities, ChatMessage, Completion
 from src.settings import ProviderConfig
-
-_PERSIAN = re.compile(r"[\u0600-\u06FF]")
-_PREVIEW_LIMIT = 160
 
 
 class StubClient:
@@ -25,25 +22,32 @@ class StubClient:
                 supports_streaming=True,
             )
 
-    def complete(self, messages: list[ChatMessage], *, max_tokens: int | None = None) -> Completion:
-        content = self._reply(messages)
-        return Completion(content=content, model=self.model, completion_tokens=self.count_tokens(content))
+    def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_tokens: int | None = None,
+        tools: list[dict] | None = None,
+    ) -> Completion:
+        del max_tokens
+        content, calls = plan(messages, tools)
+        return Completion(
+            content=content,
+            model=self.model,
+            completion_tokens=self.count_tokens(content),
+            tool_calls=tuple(calls),
+        )
 
-    def stream(self, messages: list[ChatMessage], *, max_tokens: int | None = None) -> Iterator[str]:
-        yield self._reply(messages)
+    def stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_tokens: int | None = None,
+        tools: list[dict] | None = None,
+    ) -> Iterator[str]:
+        completion = self.complete(messages, max_tokens=max_tokens, tools=tools)
+        if completion.content:
+            yield completion.content
 
     def count_tokens(self, text: str) -> int:
         return estimate_tokens(text)
-
-    def _reply(self, messages: list[ChatMessage]) -> str:
-        latest = ""
-        for message in reversed(messages):
-            if message.role == "user":
-                latest = message.content
-                break
-        preview = " ".join(latest.split())
-        if len(preview) > _PREVIEW_LIMIT:
-            preview = preview[: _PREVIEW_LIMIT - 3] + "..."
-        if _PERSIAN.search(latest):
-            return f"پاسخ stub: پیام شما دریافت شد. «{preview}»"
-        return f'Stub reply: your message was received. "{preview}"'

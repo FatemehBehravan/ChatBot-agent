@@ -11,10 +11,22 @@ class LLMClient(Protocol):
     model: str
     capabilities: Capabilities
 
-    def complete(self, messages: list[ChatMessage], *, max_tokens: int | None = None) -> Completion:
-        """Return one assistant message."""
+    def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_tokens: int | None = None,
+        tools: list[dict] | None = None,
+    ) -> Completion:
+        """Return one assistant message. `tools` is the catalog the model may call."""
 
-    def stream(self, messages: list[ChatMessage], *, max_tokens: int | None = None) -> Iterator[str]:
+    def stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_tokens: int | None = None,
+        tools: list[dict] | None = None,
+    ) -> Iterator[str]:
         """Yield assistant text as it arrives. Optional for a provider to implement as one chunk."""
 
     def count_tokens(self, text: str) -> int:

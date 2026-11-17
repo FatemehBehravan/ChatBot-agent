@@ -51,6 +51,8 @@ docker compose exec ollama ollama pull qwen2.5:7b-instruct
 
 Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER` chooses the model: `stub` (default, no network), `local`, or `remote`. Restart the container after changing it.
 
+The stub runs the same tool loop as the other providers. A delivery-time question is answered from the orders snapshot and states the sample size. A help question cites a fixture page. A support ticket or a cancellation waits until the next message confirms it.
+
 On startup the snapshot CSVs are loaded into SQLite if they changed, and the fixture knowledge pages are indexed. Crawling the public site is separate and uses the network:
 
 ```bash
@@ -217,10 +219,10 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [ ] Optional bonus: a read-only, guarded analytics tool for operations managers (query allow-listing, row/time limits, no writes).
 
 ### Stage 5 — Agent loop, chat and (optional) UI
-- [ ] Loop of reason → tool call → observe → answer, with a maximum step count and repetition/loop detection.
-- [ ] Multi-turn sessions with IDs and persistence.
-- [ ] Graceful handling of: tool failure, malformed tool calls from a weak model, ambiguous requests (ask a clarifying question), out-of-scope requests.
-- [ ] Responds in the user's language (Persian or English). Answers grounded in data state their basis (sample size, source) and never present statistics as guarantees.
+- [x] Loop of reason → tool call → observe → answer, with a maximum step count and repetition/loop detection.
+- [x] Multi-turn sessions with IDs and persistence.
+- [x] Graceful handling of: tool failure, malformed tool calls from a weak model, ambiguous requests (ask a clarifying question), out-of-scope requests.
+- [x] Responds in the user's language (Persian or English). Answers grounded in data state their basis (sample size, source) and never present statistics as guarantees.
 - [ ] Optional: UI per section 7.
 
 ### Stage 6 — Context window and token management

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from src.api.app import create_app
 from src.llm.stub import StubClient
+from src.llm.stub_policy import OUT_OF_SCOPE_EN, OUT_OF_SCOPE_FA
 from src.llm.types import ChatMessage
 
 
@@ -15,7 +16,7 @@ def test_stub_replies_from_the_latest_user_message():
             ChatMessage(role="user", content="hello"),
         ]
     )
-    assert reply.content == 'Stub reply: your message was received. "hello"'
+    assert reply.content == OUT_OF_SCOPE_EN
 
 
 def test_stub_replies_in_persian_and_is_deterministic():
@@ -23,7 +24,7 @@ def test_stub_replies_in_persian_and_is_deterministic():
     first = StubClient().complete(messages)
     second = StubClient().complete(messages)
     assert first.content == second.content
-    assert first.content.startswith("پاسخ stub:")
+    assert first.content == OUT_OF_SCOPE_FA
 
 
 def test_health(config):
@@ -40,7 +41,7 @@ def test_chat_keeps_a_session_and_answers_in_the_user_language(config):
     first = client.post("/v1/chat", json={"message": "hello", "user_id": "u-anon"})
     assert first.status_code == 200
     body = first.json()
-    assert body["reply"] == 'Stub reply: your message was received. "hello"'
+    assert body["reply"] == OUT_OF_SCOPE_EN
     assert body["provider"] == "stub"
     assert body["role"] == "anonymous"
 
@@ -49,7 +50,7 @@ def test_chat_keeps_a_session_and_answers_in_the_user_language(config):
         json={"message": "سلام", "session_id": body["session_id"], "user_id": "u-anon"},
     )
     assert second.status_code == 200
-    assert second.json()["reply"].startswith("پاسخ stub:")
+    assert second.json()["reply"] == OUT_OF_SCOPE_FA
     assert "charset=utf-8" in second.headers["content-type"].lower()
 
     stored = json.loads((config.state_dir / "sessions" / f"{body['session_id']}.json").read_text(encoding="utf-8"))

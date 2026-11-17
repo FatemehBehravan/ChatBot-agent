@@ -18,7 +18,7 @@ from src.llm.errors import (
 )
 from src.llm.retry import call_with_retry
 from src.llm.tokens import estimate_tokens
-from src.llm.types import Capabilities, ChatMessage, Completion
+from src.llm.types import Capabilities, ChatMessage, Completion, ToolCall
 from src.settings import ProviderConfig
 
 _CONTEXT_MARKERS = ("context length", "context_length", "maximum context", "too many tokens", "context window")
@@ -53,26 +53,58 @@ class OpenAICompatibleClient:
         self._rng = rng
         self._attempts = attempts
 
-    def complete(self, messages: list[ChatMessage], *, max_tokens: int | None = None) -> Completion:
-        response = self._post(self._payload(messages, max_tokens=max_tokens, stream=False))
+    def complete(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_tokens: int | None = None,
+        tools: list[dict] | None = None,
+    ) -> Completion:
+        response = self._post(self._payload(messages, max_tokens=max_tokens, stream=False, tools=tools))
         return self._parse_completion(response)
 
-    def stream(self, messages: list[ChatMessage], *, max_tokens: int | None = None) -> Iterator[str]:
-        response = self._post(self._payload(messages, max_tokens=max_tokens, stream=True))
+    def stream(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_tokens: int | None = None,
+        tools: list[dict] | None = None,
+    ) -> Iterator[str]:
+        response = self._post(self._payload(messages, max_tokens=max_tokens, stream=True, tools=tools))
         yield from self._parse_stream(response.text)
 
     def count_tokens(self, text: str) -> int:
         return estimate_tokens(text)
 
-    def _payload(self, messages: list[ChatMessage], *, max_tokens: int | None, stream: bool) -> dict:
+    def _payload(
+        self,
+        messages: list[ChatMessage],
+        *,
+        max_tokens: int | None,
+        stream: bool,
+        tools: list[dict] | None,
+    ) -> dict:
         limit = self.capabilities.max_output_tokens if max_tokens is None else max_tokens
         limit = min(limit, self.capabilities.max_output_tokens)
-        return {
+        payload: dict = {
             "model": self.model,
-            "messages": [{"role": message.role, "content": message.content} for message in messages],
+            "messages": [_serialize_message(message) for message in messages],
             "max_tokens": limit,
             "stream": stream,
         }
+        if tools:
+            payload["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool["name"],
+                        "description": tool.get("description", ""),
+                        "parameters": tool.get("parameters") or {"type": "object", "properties": {}},
+                    },
+                }
+                for tool in tools
+            ]
+        return payload
 
     def _post(self, payload: dict) -> httpx.Response:
         def operation() -> httpx.Response:
@@ -120,14 +152,21 @@ class OpenAICompatibleClient:
         if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
             raise MalformedResponseError("provider response has no choices")
         message = choices[0].get("message")
-        if not isinstance(message, dict) or not isinstance(message.get("content"), str):
+        if not isinstance(message, dict):
             raise MalformedResponseError("provider response has no message content")
+        tool_calls = _parse_tool_calls(message.get("tool_calls"))
+        content = message.get("content")
+        if not isinstance(content, str):
+            if not tool_calls:
+                raise MalformedResponseError("provider response has no message content")
+            content = ""
         usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else {}
         return Completion(
-            content=message["content"],
+            content=content,
             model=str(payload.get("model") or self.model),
             prompt_tokens=_optional_int(usage.get("prompt_tokens")),
             completion_tokens=_optional_int(usage.get("completion_tokens")),
+            tool_calls=tool_calls,
         )
 
     def _parse_stream(self, body: str) -> Iterator[str]:
@@ -152,6 +191,47 @@ class OpenAICompatibleClient:
                 yield content
         if not produced:
             raise MalformedResponseError("provider stream has no content")
+
+
+def _serialize_message(message: ChatMessage) -> dict:
+    if message.role == "tool":
+        return {"role": "tool", "tool_call_id": message.tool_call_id or "", "content": message.content}
+    payload: dict = {"role": message.role, "content": message.content}
+    if message.tool_calls:
+        if not message.content:
+            payload["content"] = None
+        payload["tool_calls"] = [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {"name": call.name, "arguments": call.arguments},
+            }
+            for call in message.tool_calls
+        ]
+    return payload
+
+
+def _parse_tool_calls(raw: object) -> tuple[ToolCall, ...]:
+    if not isinstance(raw, list):
+        return ()
+    calls = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            continue
+        function = item.get("function") if isinstance(item.get("function"), dict) else {}
+        arguments = function.get("arguments")
+        if isinstance(arguments, dict):
+            arguments = json.dumps(arguments, ensure_ascii=False)
+        elif not isinstance(arguments, str):
+            arguments = ""
+        calls.append(
+            ToolCall(
+                id=str(item.get("id") or f"call-{index + 1}"),
+                name=str(function.get("name") or ""),
+                arguments=arguments,
+            )
+        )
+    return tuple(calls)
 
 
 def _json_object(text: str) -> dict:

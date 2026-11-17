@@ -4,9 +4,19 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class ToolCall:
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass(frozen=True)
 class ChatMessage:
     role: str
     content: str
+    tool_calls: tuple[ToolCall, ...] = ()
+    tool_call_id: str | None = None
+    name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -23,3 +33,4 @@ class Completion:
     model: str
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
+    tool_calls: tuple[ToolCall, ...] = ()

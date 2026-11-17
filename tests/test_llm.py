@@ -7,6 +7,7 @@ from src.llm.errors import AuthError, ContextOverflowError, LLMTimeoutError, Mal
 from src.llm.factory import build_client
 from src.llm.openai_compatible import OpenAICompatibleClient
 from src.llm.stub import StubClient
+from src.llm.stub_policy import OUT_OF_SCOPE_EN
 from src.llm.types import ChatMessage
 from src.settings import ProviderConfig
 
@@ -57,9 +58,7 @@ def test_stub_declares_capabilities_and_counts_tokens():
     assert client.capabilities.supports_streaming is True
     assert client.count_tokens("hello") >= 1
     assert client.count_tokens("سلام") >= client.count_tokens("hi")
-    assert list(client.stream([ChatMessage(role="user", content="hello")])) == [
-        'Stub reply: your message was received. "hello"'
-    ]
+    assert list(client.stream([ChatMessage(role="user", content="hello")])) == [OUT_OF_SCOPE_EN]
 
 
 def test_openai_client_completes_and_streams():
@@ -151,6 +150,49 @@ def test_malformed_response_is_normalized():
         assert exc.retryable is False
     else:
         raise AssertionError("expected MalformedResponseError")
+
+
+def test_openai_client_parses_a_tool_call():
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["tools"][0]["function"]["name"] == "get_order_status"
+        assert body["messages"][1]["role"] == "tool"
+        return httpx.Response(
+            200,
+            json={
+                "model": "unit-model",
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": None,
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "get_order_status",
+                                        "arguments": '{"order_id":"A-246001"}',
+                                    },
+                                }
+                            ],
+                        }
+                    }
+                ],
+            },
+        )
+
+    client = _client(handler)
+    completion = client.complete(
+        [
+            ChatMessage(role="user", content="status"),
+            ChatMessage(role="tool", content="{}", tool_call_id="call_0", name="get_order_status"),
+        ],
+        tools=[{"name": "get_order_status", "description": "Look up one order.", "parameters": {"type": "object"}}],
+    )
+    assert completion.content == ""
+    assert completion.tool_calls[0].name == "get_order_status"
+    assert completion.tool_calls[0].arguments == '{"order_id":"A-246001"}'
 
 
 def test_factory_switches_local_and_remote_without_code_changes(config, monkeypatch):

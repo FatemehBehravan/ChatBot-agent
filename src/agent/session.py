@@ -4,13 +4,14 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 
 @dataclass
 class Session:
     session_id: str
     user_id: str
-    messages: list[dict[str, str]] = field(default_factory=list)
+    messages: list[dict[str, Any]] = field(default_factory=list)
 
 
 class SessionStore:
