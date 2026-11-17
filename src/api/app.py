@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 from src.agent.chat import SessionForbiddenError, SessionNotFoundError, handle_chat
 from src.agent.session import SessionStore
 from src.api.schemas import ChatRequest, ChatResponse, HealthResponse
+from src.knowledge.index import index_seed
+from src.data.load import load_snapshot
 from src.llm.errors import LLMError
 from src.llm.factory import build_client
 from src.security.identity import UnknownUserError
@@ -27,6 +29,10 @@ class UTF8JSONResponse(JSONResponse):
 
 def create_app(config: AppConfig) -> FastAPI:
     prepare_state(config.state_dir)
+    db_path = config.state_dir / "db" / "app.db"
+    orders = load_snapshot(config.data_dir, db_path)
+    index_seed(config.data_dir / "knowledge" / "seed", db_path)
+    logger.info("snapshot ready orders=%s", orders)
     app = FastAPI(title="Alopeyk Delivery Assistant", version="0.1.0", default_response_class=UTF8JSONResponse)
     app.state.config = config
     app.state.sessions = SessionStore(config.state_dir / "sessions")

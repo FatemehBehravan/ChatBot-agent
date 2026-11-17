@@ -1,1 +1,1 @@
-"""Database access. The orders snapshot is loaded in stage 3."""
+"""SQLite snapshot: idempotent load and read-only lookups."""

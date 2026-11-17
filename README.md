@@ -51,6 +51,12 @@ docker compose exec ollama ollama pull qwen2.5:7b-instruct
 
 Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER` chooses the model: `stub` (default, no network), `local`, or `remote`. Restart the container after changing it.
 
+On startup the snapshot CSVs are loaded into SQLite if they changed, and the fixture knowledge pages are indexed. Crawling the public site is separate and uses the network:
+
+```bash
+python scripts/ingest_knowledge.py
+```
+
 ## 1. Background
 
 [Alopeyk](https://alopeyk.com/) is an on-demand delivery platform: customers request a courier (motorcycle, car or van) to pick up and deliver parcels, documents, food and more within and between cities. The company publishes a lot of educational and help content (blog and help/education pages) and keeps a large operational database of orders.
@@ -196,12 +202,12 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] Switching provider requires configuration changes only.
 
 ### Stage 3 — Data layer and knowledge base
-- [ ] The snapshot CSVs are loaded into your chosen database by an idempotent loader; indexes support the required queries efficiently.
-- [ ] The application connects with a **read-only** database role/mode for analytics and lookup paths.
-- [ ] Knowledge ingestion pipeline: fetches public blog/help/education pages from the company website (polite crawling, `robots.txt` respected), extracts clean text, stores source URL, title, language and fetch date, de-duplicates by content hash.
-- [ ] Persian-aware preprocessing: normalization (Arabic/Persian letter variants, digits, ZWNJ) before indexing and querying.
-- [ ] Chunking and retrieval (keyword, BM25, embeddings or hybrid — justified) that return passages **with source URLs**; works offline against `data/knowledge/seed/`.
-- [ ] Retrieval quality checked on a small question set you write (hit rate reported in your delivery document).
+- [x] The snapshot CSVs are loaded into your chosen database by an idempotent loader; indexes support the required queries efficiently.
+- [x] The application connects with a **read-only** database role/mode for analytics and lookup paths.
+- [x] Knowledge ingestion pipeline: fetches public blog/help/education pages from the company website (polite crawling, `robots.txt` respected), extracts clean text, stores source URL, title, language and fetch date, de-duplicates by content hash.
+- [x] Persian-aware preprocessing: normalization (Arabic/Persian letter variants, digits, ZWNJ) before indexing and querying.
+- [x] Chunking and retrieval (keyword, BM25, embeddings or hybrid — justified) that return passages **with source URLs**; works offline against `data/knowledge/seed/`.
+- [x] Retrieval quality checked on a small question set you write (hit rate reported in your delivery document).
 
 ### Stage 4 — Domain tools
 - [ ] Tools covering at least: `get_order_status`, `list_my_orders`, `search_orders` (staff only), `estimate_delivery_time`, `estimate_price_range`, `search_knowledge_base`, `create_support_ticket`, `request_order_cancellation`.

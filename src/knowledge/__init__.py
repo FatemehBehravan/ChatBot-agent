@@ -1,1 +1,1 @@
-"""Knowledge ingestion and retrieval. Stage 3 fills this package."""
+"""Fixture index, FTS5 retrieval, and a polite crawler."""
