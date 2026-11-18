@@ -1,7 +1,7 @@
-"""Load authenticated identities from the synthetic users file.
+"""Load identities from the synthetic users file.
 
-Stage 1 trusts the user_id sent with the request. It checks that the id exists.
-It does not authenticate a password or token; that boundary is stage 7.
+The request user_id only selects a row. Role and customer_id come from that
+row and stay on the session. Chat text and tool arguments cannot replace them.
 """
 
 import json

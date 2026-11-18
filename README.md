@@ -236,13 +236,13 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] A long-conversation test proving the above.
 
 ### Stage 7 — Access control and security
-- [ ] Roles and permissions defined in `config/roles.yaml` (extend the starter).
-- [ ] Enforced at three layers: (1) tool exposure — the model only sees tools its role may use, (2) tool execution — authorize again at call time, (3) data — per-row scoping and per-field redaction.
-- [ ] Identity comes from the authenticated session context, never from model output or claims typed in chat.
-- [ ] PII policy: what may reach the hosted model, masking before sending, redaction in logs.
-- [ ] Prompt-injection resilience: order notes, retrieved web content and documents are treated as data, not instructions. Demonstrate against the poisoned note in `data/orders_snapshot.csv` (order `A-240001`).
-- [ ] SQL safety: no model-controlled SQL fragments reach the database unvalidated; test with hostile inputs.
-- [ ] Audit log for sensitive actions (who, what, when, which model).
+- [x] Roles and permissions defined in `config/roles.yaml` (extend the starter).
+- [x] Enforced at three layers: (1) tool exposure — the model only sees tools its role may use, (2) tool execution — authorize again at call time, (3) data — per-row scoping and per-field redaction.
+- [x] Identity comes from the authenticated session context, never from model output or claims typed in chat.
+- [x] PII policy: what may reach the hosted model, masking before sending, redaction in logs.
+- [x] Prompt-injection resilience: order notes, retrieved web content and documents are treated as data, not instructions. Demonstrate against the poisoned note in `data/orders_snapshot.csv` (order `A-240001`).
+- [x] SQL safety: no model-controlled SQL fragments reach the database unvalidated; test with hostile inputs.
+- [x] Audit log for sensitive actions (who, what, when, which model).
 
 ### Stage 8 — Prompt engineering
 - [ ] Prompts live in `prompts/`, versioned, with a `CHANGELOG.md` explaining each change and the evidence behind it.

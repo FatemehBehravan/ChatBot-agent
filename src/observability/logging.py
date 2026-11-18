@@ -1,4 +1,7 @@
-"""Process logging. Chat logs record ids and sizes, not message text."""
+"""Process logging. Chat logs record ids and sizes, not message text.
+
+The audit log records sensitive actions without message bodies or phone numbers.
+"""
 
 import logging
 import sys

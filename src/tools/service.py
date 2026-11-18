@@ -16,6 +16,7 @@ from pydantic import BaseModel, ValidationError
 from src.data.db import connect_ro, connect_rw
 from src.knowledge.index import search
 from src.security.identity import Identity
+from src.security.redact import present
 from src.settings import RoleConfig, RolesConfig
 from src.tools.schemas import (
     CreateSupportTicketInput,
@@ -129,7 +130,7 @@ def _order_brief(row: Any) -> dict[str, Any]:
 
 
 def get_order_status(db_path: Path, identity: Identity, role: RoleConfig, args: GetOrderStatusInput) -> dict[str, Any]:
-    if role.scope == "own_customer" and not identity.customer_id:
+    if role.scope == "none" or (role.scope == "own_customer" and not identity.customer_id):
         return {"ok": False, "error": "not_found", "message": "Order not found."}
     if not db_path.is_file():
         return _missing_database()
@@ -166,7 +167,7 @@ def get_order_status(db_path: Path, identity: Identity, role: RoleConfig, args: 
 
 
 def list_my_orders(db_path: Path, identity: Identity, role: RoleConfig, args: ListMyOrdersInput) -> dict[str, Any]:
-    if not identity.customer_id:
+    if role.scope == "none" or not identity.customer_id:
         return {"ok": False, "error": "not_found", "message": "This user has no orders."}
     if not db_path.is_file():
         return _missing_database()
@@ -188,7 +189,9 @@ def list_my_orders(db_path: Path, identity: Identity, role: RoleConfig, args: Li
 
 
 def search_orders(db_path: Path, identity: Identity, role: RoleConfig, args: SearchOrdersInput) -> dict[str, Any]:
-    del identity, role
+    del identity
+    if role.scope == "none":
+        return {"ok": True, "orders": [], "limit": args.limit}
     if not db_path.is_file():
         return _missing_database()
     connection = connect_ro(db_path)
@@ -444,7 +447,7 @@ def _order_in_scope(connection: Any, order_id: str, customer_id: str | None) -> 
 def create_support_ticket(
     db_path: Path, identity: Identity, role: RoleConfig, args: CreateSupportTicketInput
 ) -> dict[str, Any]:
-    if role.scope == "own_customer" and not identity.customer_id:
+    if role.scope == "none" or (role.scope == "own_customer" and not identity.customer_id):
         return {"ok": False, "error": "not_found", "message": "Order not found."}
 
     def perform(connection: Any, payload: dict[str, Any], confirmation_id: str) -> dict[str, Any]:
@@ -468,7 +471,7 @@ def create_support_ticket(
 def request_order_cancellation(
     db_path: Path, identity: Identity, role: RoleConfig, args: RequestCancellationInput
 ) -> dict[str, Any]:
-    if role.scope == "own_customer" and not identity.customer_id:
+    if role.scope == "none" or (role.scope == "own_customer" and not identity.customer_id):
         return {"ok": False, "error": "not_found", "message": "Order not found."}
 
     def perform(connection: Any, payload: dict[str, Any], confirmation_id: str) -> dict[str, Any]:
@@ -564,6 +567,9 @@ def tool_catalog(role: RoleConfig) -> list[dict[str, Any]]:
     return catalog
 
 
+_IDENTITY_KEYS = {"user_id", "role", "customer_id"}
+
+
 def execute_tool(
     db_path: Path,
     roles: RolesConfig,
@@ -577,10 +583,22 @@ def execute_tool(
     role = roles.roles.get(identity.role)
     if role is None or name not in role.tools:
         return {"ok": False, "error": "forbidden", "message": f"{name} is not available for this role."}
+    if arguments and _IDENTITY_KEYS.intersection(arguments):
+        return {
+            "ok": False,
+            "error": "forbidden",
+            "message": "Identity is taken from the session, not from tool arguments.",
+        }
     description, model, handler = spec
     del description
     try:
         parsed = model.model_validate(arguments or {})
     except ValidationError as exc:
         return _invalid(exc)
-    return handler(db_path, identity, role, parsed)
+    result = handler(db_path, identity, role, parsed)
+    return present(
+        result,
+        pii=role.pii,
+        pii_fields=roles.pii_fields,
+        untrusted_fields=roles.untrusted_fields,
+    )

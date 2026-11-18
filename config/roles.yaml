@@ -5,6 +5,12 @@
 #   all           -> all records
 # pii: how personal data in tool results is presented to the role.
 #   own_full | masked | none
+# pii_fields are personal. own_full keeps them, masked hides them, none drops the field.
+# untrusted_fields are data (order notes, retrieved pages). Instruction-like sentences
+# are removed before a tool result is sent to a model.
+
+pii_fields: [phone, full_name]
+untrusted_fields: [notes, text]
 
 roles:
   anonymous:

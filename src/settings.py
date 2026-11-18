@@ -141,12 +141,17 @@ class RoleConfig(BaseModel):
 class RolesConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    pii_fields: list[str] = Field(default_factory=lambda: ["phone", "full_name"])
+    untrusted_fields: list[str] = Field(default_factory=lambda: ["notes", "text"])
     roles: dict[str, RoleConfig]
 
     @model_validator(mode="after")
     def at_least_one_role(self) -> "RolesConfig":
         if not self.roles:
             raise ValueError("at least one role is required")
+        for name in (*self.pii_fields, *self.untrusted_fields):
+            if not isinstance(name, str) or not name:
+                raise ValueError("pii_fields and untrusted_fields must be non-empty strings")
         return self
 
 
