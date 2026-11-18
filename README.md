@@ -228,12 +228,12 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] Optional: UI per section 7.
 
 ### Stage 6 — Context window and token management
-- [ ] Token counting per model (exact tokenizer, or a documented approximation with a safety margin that accounts for Persian text).
-- [ ] A budget allocator that splits each model's window between: system prompt, tool schemas, history, tool results, retrieved passages, reserved output.
-- [ ] Strategies implemented and justified: tool-output truncation, sliding window, summarization of old turns, pinned facts (e.g. active order IDs), de-duplication, retrieved-passage selection under budget.
-- [ ] A conversation can move between models with different windows (small local window ↔ large hosted window) without errors or silent loss of critical facts.
-- [ ] Per-request, per-session and per-user token/cost limits with clear user-facing behavior when a limit is reached.
-- [ ] A long-conversation test proving the above.
+- [x] Token counting per model (exact tokenizer, or a documented approximation with a safety margin that accounts for Persian text).
+- [x] A budget allocator that splits each model's window between: system prompt, tool schemas, history, tool results, retrieved passages, reserved output.
+- [x] Strategies implemented and justified: tool-output truncation, sliding window, summarization of old turns, pinned facts (e.g. active order IDs), de-duplication, retrieved-passage selection under budget.
+- [x] A conversation can move between models with different windows (small local window ↔ large hosted window) without errors or silent loss of critical facts.
+- [x] Per-request, per-session and per-user token/cost limits with clear user-facing behavior when a limit is reached.
+- [x] A long-conversation test proving the above.
 
 ### Stage 7 — Access control and security
 - [ ] Roles and permissions defined in `config/roles.yaml` (extend the starter).

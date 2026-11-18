@@ -5,7 +5,9 @@ from pathlib import Path
 
 from src.agent.loop import message_from_dict, message_to_dict, run_agent
 from src.agent.session import SessionStore
+from src.context.budget import add_user_usage, blocked_message, over_limit, read_user_usage
 from src.llm.base import LLMClient
+from src.llm.tokens import estimate_cost, estimate_tokens
 from src.llm.types import ChatMessage
 from src.security.identity import UnknownUserError
 from src.settings import AppConfig
@@ -52,6 +54,25 @@ def handle_chat(
         if session.user_id != identity.user_id:
             raise SessionForbiddenError(session_id)
     session.messages.append({"role": "user", "content": message})
+    user_tokens, user_cost = read_user_usage(_usage_path(config, identity.user_id))
+    if over_limit(
+        session_tokens=session.tokens_total,
+        session_cost=session.cost_usd,
+        user_tokens=user_tokens,
+        user_cost=user_cost,
+        limits=config.limits,
+    ):
+        reply = blocked_message(message)
+        session.messages.append({"role": "assistant", "content": reply})
+        store.save(session)
+        return ChatOutcome(
+            session_id=session.session_id,
+            user_id=identity.user_id,
+            role=identity.role,
+            reply=reply,
+            provider=config.app_provider,
+            model=client.model,
+        )
     role = config.roles.roles.get(identity.role)
     history = [message_from_dict(item) for item in session.messages]
     result = run_agent(
@@ -61,8 +82,24 @@ def handle_chat(
         execute=lambda name, arguments: execute_tool(_database(config), config.roles, identity, name, arguments),
         max_steps=config.limits.agent_loop.max_steps,
         max_identical=config.limits.agent_loop.max_identical_tool_calls,
+        context_window=client.capabilities.context_window,
+        limits=config.limits,
     )
     session.messages.extend(message_to_dict(item) for item in result.new_messages)
+    input_tokens = estimate_tokens(message) + sum(
+        estimate_tokens(item.content) for item in result.new_messages if item.role == "tool"
+    )
+    output_tokens = sum(estimate_tokens(item.content) for item in result.new_messages if item.role == "assistant")
+    pricing = config.provider.pricing
+    cost = estimate_cost(
+        input_tokens,
+        output_tokens,
+        None if pricing is None else pricing.input_per_1m_tokens,
+        None if pricing is None else pricing.output_per_1m_tokens,
+    )
+    session.tokens_total += input_tokens + output_tokens
+    session.cost_usd += cost
+    add_user_usage(_usage_path(config, identity.user_id), input_tokens + output_tokens, cost)
     store.save(session)
     return ChatOutcome(
         session_id=session.session_id,
@@ -77,3 +114,7 @@ def handle_chat(
 
 def _database(config: AppConfig) -> Path:
     return config.state_dir / "db" / "app.db"
+
+
+def _usage_path(config: AppConfig, user_id: str) -> Path:
+    return config.state_dir / "usage" / f"{user_id}.json"

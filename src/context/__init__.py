@@ -1,1 +1,5 @@
-"""Token budgets and context trimming. The limits are loaded in stage 1 and applied later."""
+"""Fit a prompt to the active model's context window."""
+
+from src.context.budget import fit_context
+
+__all__ = ["fit_context"]

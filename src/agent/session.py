@@ -12,6 +12,8 @@ class Session:
     session_id: str
     user_id: str
     messages: list[dict[str, Any]] = field(default_factory=list)
+    tokens_total: int = 0
+    cost_usd: float = 0.0
 
 
 class SessionStore:
@@ -33,6 +35,8 @@ class SessionStore:
             session_id=data["session_id"],
             user_id=data["user_id"],
             messages=list(data["messages"]),
+            tokens_total=int(data.get("tokens_total") or 0),
+            cost_usd=float(data.get("cost_usd") or 0),
         )
 
     def save(self, session: Session) -> None:
@@ -41,6 +45,8 @@ class SessionStore:
             "session_id": session.session_id,
             "user_id": session.user_id,
             "messages": session.messages,
+            "tokens_total": session.tokens_total,
+            "cost_usd": session.cost_usd,
         }
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

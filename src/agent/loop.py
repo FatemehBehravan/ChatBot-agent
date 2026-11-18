@@ -10,8 +10,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from src.context.budget import fit_context
 from src.llm.base import LLMClient
 from src.llm.types import ChatMessage, ToolCall
+from src.settings import LimitsConfig
 
 _PERSIAN = re.compile(r"[\u0600-\u06FF]")
 Execute = Callable[[str, dict[str, Any]], dict[str, Any]]
@@ -32,13 +34,22 @@ def run_agent(
     execute: Execute,
     max_steps: int,
     max_identical: int,
+    context_window: int | None = None,
+    limits: LimitsConfig | None = None,
 ) -> AgentResult:
     transcript = list(messages)
     names: list[str] = []
     seen: dict[str, int] = {}
     steps = 0
+
+    def complete(tool_list: list[dict]):
+        if context_window is None or limits is None:
+            return client.complete(transcript, tools=tool_list)
+        fitted, fitted_tools = fit_context(transcript, tools=tool_list, window=context_window, limits=limits)
+        return client.complete(fitted, tools=fitted_tools)
+
     while True:
-        completion = client.complete(transcript, tools=tools)
+        completion = complete(tools)
         if not completion.tool_calls:
             return _finish(transcript, len(messages), completion.content or _empty(transcript), names)
         if steps >= max_steps:
@@ -70,7 +81,7 @@ def run_agent(
                 )
             )
         if repeated:
-            final = client.complete(transcript, tools=[])
+            final = complete([])
             if final.tool_calls or not final.content:
                 return _finish(transcript, len(messages), _stopped(transcript, "repeated"), names)
             return _finish(transcript, len(messages), final.content, names)
