@@ -12,10 +12,12 @@ from typing import Any
 
 from src.context.budget import fit_context
 from src.llm.base import LLMClient
+from src.llm.stub_policy import format_own_orders, wants_own_orders
 from src.llm.types import ChatMessage, ToolCall
 from src.settings import LimitsConfig
 
 _PERSIAN = re.compile(r"[\u0600-\u06FF]")
+_ORDER_ID = re.compile(r"A-\d+", re.IGNORECASE)
 Execute = Callable[[str, dict[str, Any]], dict[str, Any]]
 
 
@@ -41,6 +43,9 @@ def run_agent(
     names: list[str] = []
     seen: dict[str, int] = {}
     steps = 0
+    listed = _list_own_orders(transcript, tools, execute, names)
+    if listed is not None:
+        return _finish(transcript, len(messages), listed, names)
 
     def complete(tool_list: list[dict]):
         if context_window is None or limits is None:
@@ -112,6 +117,35 @@ def message_from_dict(data: dict[str, Any]) -> ChatMessage:
         tool_call_id=data.get("tool_call_id"),
         name=data.get("name"),
     )
+
+
+def _list_own_orders(
+    transcript: list[ChatMessage], tools: list[dict], execute: Execute, names: list[str]
+) -> str | None:
+    """Read this customer's orders before the model speaks.
+
+    A small local model otherwise asks for an order id, including after the
+    user says they do not know it. The lookup is already allowed for the role.
+    """
+    if not any(tool.get("name") == "list_my_orders" for tool in tools):
+        return None
+    user = _latest_user(transcript)
+    if not user or _ORDER_ID.search(user) or not wants_own_orders(user):
+        return None
+    call = ToolCall(id="call-orders", name="list_my_orders", arguments='{"limit": 5}')
+    names.append(call.name)
+    transcript.append(ChatMessage(role="assistant", content="", tool_calls=(call,)))
+    observation = _run_call(call, execute)
+    transcript.append(
+        ChatMessage(
+            role="tool",
+            content=json.dumps(observation, ensure_ascii=False),
+            tool_call_id=call.id,
+            name=call.name,
+        )
+    )
+    rows = observation.get("orders") if isinstance(observation, dict) else None
+    return format_own_orders(rows if isinstance(rows, list) else [], _persian(transcript))
 
 
 def _run_call(call: ToolCall, execute: Execute) -> dict[str, Any]:

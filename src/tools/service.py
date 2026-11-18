@@ -523,7 +523,11 @@ def request_order_cancellation(
 
 _TOOLS: dict[str, tuple[str, type[BaseModel], ToolHandler]] = {
     "get_order_status": ("Look up one order by id.", GetOrderStatusInput, get_order_status),
-    "list_my_orders": ("List the signed-in customer's newest orders.", ListMyOrdersInput, list_my_orders),
+    "list_my_orders": (
+        "List this customer's orders. Use it when they want an order but gave no id.",
+        ListMyOrdersInput,
+        list_my_orders,
+    ),
     "search_orders": ("Search orders. Staff only.", SearchOrdersInput, search_orders),
     "estimate_delivery_time": (
         "Median and P80 delivery time from delivered orders near a distance.",
@@ -549,6 +553,33 @@ _TOOLS: dict[str, tuple[str, type[BaseModel], ToolHandler]] = {
 }
 
 
+def _repair(name: str, arguments: dict[str, Any] | None, model: type[BaseModel]) -> BaseModel | None:
+    """One cleanup pass for a write-tool payload, then the schema runs again.
+
+    Unknown keys are dropped, strings are trimmed to their limit, and a
+    yes/no confirmation string becomes a boolean. A value that is still
+    invalid is left for the model to correct on the next step.
+    """
+    if name not in _REPAIRABLE or not isinstance(arguments, dict):
+        return None
+    cleaned: dict[str, Any] = {}
+    for key, value in arguments.items():
+        if key not in model.model_fields:
+            continue
+        if isinstance(value, str):
+            value = value.strip()
+            limit = _FIELD_LIMITS.get(key)
+            if limit is not None and len(value) > limit:
+                value = value[:limit].rstrip()
+        if key == "confirmed" and isinstance(value, str):
+            value = value.strip().lower() in {"1", "true", "yes"}
+        cleaned[key] = value
+    try:
+        return model.model_validate(cleaned)
+    except ValidationError:
+        return None
+
+
 def tool_catalog(role: RoleConfig) -> list[dict[str, Any]]:
     catalog = []
     for name in role.tools:
@@ -568,6 +599,8 @@ def tool_catalog(role: RoleConfig) -> list[dict[str, Any]]:
 
 
 _IDENTITY_KEYS = {"user_id", "role", "customer_id"}
+_REPAIRABLE = {"create_support_ticket", "request_order_cancellation"}
+_FIELD_LIMITS = {"message": 500, "reason": 300, "order_id": 32, "confirmation_id": 64}
 
 
 def execute_tool(
@@ -594,7 +627,9 @@ def execute_tool(
     try:
         parsed = model.model_validate(arguments or {})
     except ValidationError as exc:
-        return _invalid(exc)
+        parsed = _repair(name, arguments, model)
+        if parsed is None:
+            return _invalid(exc)
     result = handler(db_path, identity, role, parsed)
     return present(
         result,

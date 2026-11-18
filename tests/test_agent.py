@@ -4,7 +4,7 @@ import re
 from fastapi.testclient import TestClient
 
 from src.agent.loop import run_agent
-from src.llm.stub_policy import CLARIFY_EN, OUT_OF_SCOPE_EN
+from src.llm.stub_policy import CLARIFY_EN, CLARIFY_FA, OUT_OF_SCOPE_EN
 from src.llm.types import ChatMessage, Completion, ToolCall
 
 _MEDIAN = re.compile(r"in-transit median is (\d+(?:\.\d+)?)")
@@ -96,6 +96,19 @@ def test_order_answers_respect_the_session_and_the_role(config):
     )
     assert "search_orders" not in _tools(config, claimed["session_id"])
     assert "A-246001" not in claimed["reply"]
+
+    tracked = _chat(client, "میخوام سفارشم رو پیگیری کنم", "u-cust-1001")
+    assert _tools(config, tracked["session_id"]) == ["list_my_orders"]
+    assert "A-" in tracked["reply"]
+    assert "پایگاه سفارش‌ها" in tracked["reply"]
+
+    unknown = _chat(client, "شماره سفارشم را نمیدانم", "u-cust-1001")
+    assert _tools(config, unknown["session_id"]) == ["list_my_orders"]
+    assert "A-" in unknown["reply"]
+
+    staff_needs_id = _chat(client, "میخوام سفارشم رو پیگیری کنم", "u-support-01")
+    assert staff_needs_id["reply"] == CLARIFY_FA
+    assert _tools(config, staff_needs_id["session_id"]) == []
 
     staff = _chat(client, "Which orders in Tehran are currently in transit?", "u-support-01")
     assert "search_orders" in _tools(config, staff["session_id"])

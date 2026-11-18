@@ -1,8 +1,7 @@
-# Stage 1: the API serves the stub provider. No .env file is required.
-# `docker compose up --build` is the documented way to chat.
-# Optional local model: `docker compose --profile local-llm up --build`
+# `docker compose up --build` serves the stub. No .env file is required.
+# Local model in this Compose file: `docker compose --profile local-llm up --build`
 # then `docker compose exec ollama ollama pull qwen2.5:7b-instruct`.
-# Stage 1 does not call that model. Keep APP_PROVIDER=stub until stage 2.
+# Set APP_PROVIDER=local so the app calls http://ollama:11434/v1.
 
 name: alopeyk-agent
 
@@ -20,7 +19,7 @@ services:
       STATE_DIR: /app/.state
       CONFIG_DIR: /app/config
       DATABASE_URL: ${DATABASE_URL:-}
-      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-http://host.docker.internal:11434/v1}
+      LOCAL_BASE_URL: ${LOCAL_BASE_URL:-http://ollama:11434/v1}
       LOCAL_API_KEY: ${LOCAL_API_KEY:-not-needed}
       LOCAL_MODEL: ${LOCAL_MODEL:-qwen2.5:7b-instruct}
       REMOTE_BASE_URL: ${REMOTE_BASE_URL:-https://api.example-provider.com/v1}

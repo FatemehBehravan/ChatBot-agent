@@ -39,6 +39,14 @@ OUT_OF_SCOPE_EN = (
 OUT_OF_SCOPE_FA = "این درخواست خارج از پشتیبانی ارسال است. می‌توانم دربارهٔ سفارش‌ها، تخمین زمان تحویل و راهنمای الوپیک کمک کنم."
 CLARIFY_EN = "Which order id should I check?"
 CLARIFY_FA = "شمارهٔ کدام سفارش را بررسی کنم؟"
+_STATUS_FA = {
+    "searching_courier": "در جستجوی پیک",
+    "courier_assigned": "پیک تعیین شده",
+    "in_transit": "در حال حمل",
+    "delivered": "تحویل‌شده",
+    "cancelled_by_customer": "لغو شده توسط مشتری",
+    "cancelled_no_courier": "لغو شده چون پیکی نبود",
+}
 
 
 def plan(messages: list[ChatMessage], tools: list[dict] | None) -> tuple[str, list[ToolCall]]:
@@ -107,8 +115,10 @@ def _from_user(
             else "This account can only see its own orders. Send an order id."
         )
 
-    if any(phrase in folded for phrase in ("my orders", "سفارش‌های من", "سفارشهای من")):
-        return _maybe_call("list_my_orders", {"limit": 5}, available, persian)
+    if not order_id and _wants_own_orders(folded):
+        if "list_my_orders" in available:
+            return _call("list_my_orders", {"limit": 5})
+        return _say(CLARIFY_FA if persian else CLARIFY_EN)
 
     distance = _distance(folded)
     if distance is not None and _wants_price(folded):
@@ -201,14 +211,7 @@ def _status_answer(arguments: dict, result: dict, persian: bool) -> str:
     notes = order.get("notes") or ""
     if "ignore all" in notes.lower() or "system notice" in notes.lower():
         notes = ""
-    gloss = {
-        "searching_courier": "در جستجوی پیک",
-        "courier_assigned": "پیک تعیین شده",
-        "in_transit": "در حال حمل",
-        "delivered": "تحویل‌شده",
-        "cancelled_by_customer": "لغو شده توسط مشتری",
-        "cancelled_no_courier": "لغو شده چون پیکی نبود",
-    }.get(status, status)
+    gloss = _STATUS_FA.get(status, status)
     if persian:
         text = f"وضعیت سفارش {order_id} «{gloss}» است ({status}). این را از پایگاه سفارش‌ها خواندم."
     else:
@@ -226,12 +229,33 @@ def _missing(order_id: str, persian: bool) -> str:
     return "I could not find that order on this account."
 
 
-def _search_answer(result: dict, persian: bool) -> str:
-    rows = result.get("orders") or []
-    ids = ", ".join(row["order_id"] for row in rows[:20]) or "—"
+def format_own_orders(rows: list, persian: bool) -> str:
+    shown: list[str] = []
+    for row in rows[:20]:
+        if not isinstance(row, dict):
+            continue
+        order_id = str(row.get("order_id") or "")
+        if not order_id:
+            continue
+        status = str(row.get("status") or "")
+        label = _STATUS_FA.get(status, status) if persian else status
+        shown.append(f"{order_id} ({label})" if label else order_id)
+    if not shown:
+        if persian:
+            return "سفارشی برای این حساب در پایگاه سفارش‌ها پیدا نکردم."
+        return "I could not find any orders on this account in the orders database."
+    body = "، ".join(shown) if persian else ", ".join(shown)
     if persian:
-        return f"این سفارش‌ها را از پایگاه سفارش‌ها خواندم: {ids}."
-    return f"These orders come from the orders database: {ids}."
+        return f"این سفارش‌ها را از پایگاه سفارش‌ها خواندم: {body}."
+    return f"These orders come from the orders database: {body}."
+
+
+def wants_own_orders(text: str) -> bool:
+    return _wants_own_orders(text.translate(_DIGITS).lower())
+
+
+def _search_answer(result: dict, persian: bool) -> str:
+    return format_own_orders(result.get("orders") or [], persian)
 
 
 def _stats_answer(name: str, result: dict, persian: bool) -> str:
@@ -561,6 +585,21 @@ def _asks_directory(folded: str) -> bool:
 
 def _refers_to_an_order(folded: str) -> bool:
     return any(phrase in folded for phrase in ("that order", "this order", "the order", "اون سفارش", "آن سفارش", "همان سفارش"))
+
+
+def _wants_own_orders(folded: str) -> bool:
+    if _wants_knowledge(folded) or _wants_cancel(folded) or _wants_ticket(folded):
+        return False
+    if any(
+        phrase in folded
+        for phrase in ("my orders", "my order", "track my", "سفارش‌های من", "سفارشهای من", "سفارشم")
+    ):
+        return True
+    if "پیگیری" in folded and "سفارش" in folded:
+        return True
+    return "سفارش" in folded and any(
+        word in folded for word in ("نمیدانم", "نمی‌دانم", "نمیدونم", "نمی دونم", "ندارم")
+    )
 
 
 def _wants_knowledge(folded: str) -> bool:

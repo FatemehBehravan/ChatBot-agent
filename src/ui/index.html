@@ -32,6 +32,7 @@
     .assistant { align-self: flex-end; background: #fff; border: 1px solid #d5e0d8; }
     .error { align-self: stretch; background: #fde8e6; color: #8a2218; }
     .meta { margin: 8px 0 0; font-size: 0.75rem; opacity: 0.75; }
+    .pending { opacity: 0.7; }
     form { display: flex; gap: 8px; padding: 12px; background: #fff; border-top: 1px solid #d5e0d8; }
     textarea { flex: 1; resize: none; min-height: 52px; border: 1px solid #c5d2ca; border-radius: 10px; padding: 10px; }
   </style>
@@ -74,6 +75,24 @@
       hint.className = "empty";
       hint.textContent = "گفتگوی تازه. پیام اول نشست را می‌سازد.";
       log.appendChild(hint);
+    }
+
+    function clearPending() {
+      const waiting = log.querySelector("[data-pending]");
+      if (waiting) waiting.remove();
+    }
+
+    function showPending() {
+      clearPending();
+      const item = document.createElement("article");
+      item.className = "bubble assistant pending";
+      item.dataset.pending = "1";
+      item.dir = "rtl";
+      const body = document.createElement("p");
+      body.textContent = "در حال پاسخ…";
+      item.appendChild(body);
+      log.appendChild(item);
+      log.scrollTop = log.scrollHeight;
     }
 
     function bubble(kind, text, meta) {
@@ -120,6 +139,7 @@
       bubble("user", text);
       messageBox.value = "";
       send.disabled = true;
+      showPending();
       try {
         const response = await fetch("/v1/chat", {
           method: "POST",
@@ -127,6 +147,7 @@
           body: JSON.stringify({ message: text, user_id: userSelect.value, session_id: sessionId }),
         });
         const payload = await response.json();
+        clearPending();
         if (!response.ok) {
           bubble("error", errorText(payload));
           return;
@@ -135,6 +156,7 @@
         const tools = payload.tools && payload.tools.length ? payload.tools.join(", ") : "";
         bubble("assistant", payload.reply, [payload.provider, payload.model, payload.role, tools].filter(Boolean).join(" · "));
       } catch (_error) {
+        clearPending();
         bubble("error", "ارتباط با سرور قطع شد.");
       } finally {
         send.disabled = false;

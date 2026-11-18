@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from src.agent.loop import message_from_dict, message_to_dict, run_agent
+from src.agent.prompt import assemble_prompt
 from src.agent.session import SessionStore
 from src.context.budget import add_user_usage, blocked_message, over_limit, read_user_usage
 from src.llm.base import LLMClient
@@ -98,7 +99,19 @@ def handle_chat(
 
     result = run_agent(
         client,
-        [ChatMessage(role="system", content=config.system_prompt), *history],
+        [
+            ChatMessage(
+                role="system",
+                content=assemble_prompt(
+                    config.project_root,
+                    config.system_prompt,
+                    role_name=identity.role,
+                    role=role,
+                    provider=config.app_provider,
+                ),
+            ),
+            *history,
+        ],
         tools=tool_catalog(role) if role is not None else [],
         execute=execute,
         max_steps=config.limits.agent_loop.max_steps,

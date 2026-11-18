@@ -42,12 +42,16 @@ The container starts as root only long enough to create the state volume, then t
 docker compose exec app python -c "print(open('/proc/1/status').read().split('Uid:')[1].split()[0])"
 ```
 
-An optional Ollama service is not started by the command above. Stage 1 does not call it.
+The command above does not start Ollama. This Compose file includes it under the `local-llm` profile, and the app calls that service at `http://ollama:11434/v1`.
 
 ```bash
 docker compose --profile local-llm up --build
 docker compose exec ollama ollama pull qwen2.5:7b-instruct
 ```
+
+Set `APP_PROVIDER=local` in `.env` and start Compose again to chat with that model. Ollama on the host instead of this service: `LOCAL_BASE_URL=http://host.docker.internal:11434/v1`.
+
+A hosted model uses the same Compose file. Set `APP_PROVIDER=remote`, `REMOTE_BASE_URL`, `REMOTE_API_KEY`, and `REMOTE_MODEL` in `.env`, then `docker compose up --build`.
 
 Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER` chooses the model: `stub` (default, no network), `local`, or `remote`. Restart the container after changing it.
 
@@ -245,13 +249,13 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] Audit log for sensitive actions (who, what, when, which model).
 
 ### Stage 8 — Prompt engineering
-- [ ] Prompts live in `prompts/`, versioned, with a `CHANGELOG.md` explaining each change and the evidence behind it.
-- [ ] Role-aware prompt assembly; clear separation between instructions and untrusted data (notes, retrieved passages).
-- [ ] Prompt variants for local vs hosted models where behavior differs (few-shot examples, stricter formats for weaker models), with justification.
-- [ ] Grounding rules: cite sources for knowledge answers, state the basis of statistical answers, say "not found / insufficient data" instead of guessing.
-- [ ] Structured outputs (e.g. ticket fields) validated, with a repair/retry path.
-- [ ] Refusal and escalation behavior defined (when to say no, when to hand off to a human).
-- [ ] At least one documented before/after prompt iteration backed by eval results.
+- [x] Prompts live in `prompts/`, versioned, with a `CHANGELOG.md` explaining each change and the evidence behind it.
+- [x] Role-aware prompt assembly; clear separation between instructions and untrusted data (notes, retrieved passages).
+- [x] Prompt variants for local vs hosted models where behavior differs (few-shot examples, stricter formats for weaker models), with justification.
+- [x] Grounding rules: cite sources for knowledge answers, state the basis of statistical answers, say "not found / insufficient data" instead of guessing.
+- [x] Structured outputs (e.g. ticket fields) validated, with a repair/retry path.
+- [x] Refusal and escalation behavior defined (when to say no, when to hand off to a human).
+- [x] At least one documented before/after prompt iteration backed by eval results.
 
 ### Stage 9 — Hybrid routing and resilience
 - [ ] Config-driven routing policy that chooses local vs hosted per request or per step. Consider: data sensitivity, task complexity, required context length, tool-calling reliability, remaining budget, latency, availability.
