@@ -7,7 +7,7 @@ from src.llm.errors import AuthError, ContextOverflowError, LLMTimeoutError, Mal
 from src.llm.factory import build_client
 from src.llm.openai_compatible import OpenAICompatibleClient
 from src.llm.stub import StubClient
-from src.llm.stub_policy import OUT_OF_SCOPE_EN
+from src.llm.stub_policy import greeting
 from src.llm.types import ChatMessage
 from src.settings import ProviderConfig
 
@@ -58,7 +58,7 @@ def test_stub_declares_capabilities_and_counts_tokens():
     assert client.capabilities.supports_streaming is True
     assert client.count_tokens("hello") >= 1
     assert client.count_tokens("سلام") >= client.count_tokens("hi")
-    assert list(client.stream([ChatMessage(role="user", content="hello")])) == [OUT_OF_SCOPE_EN]
+    assert list(client.stream([ChatMessage(role="user", content="hello")])) == [greeting(set(), False)]
 
 
 def test_openai_client_completes_and_streams():

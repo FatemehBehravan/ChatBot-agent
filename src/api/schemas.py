@@ -8,10 +8,14 @@ from pydantic import BaseModel, Field, field_validator
 _USER_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
+_PROVIDERS = {"stub", "local", "remote", "route"}
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     session_id: str | None = None
     user_id: str = "u-anon"
+    provider: str | None = None
 
     @field_validator("message")
     @classmethod
@@ -38,6 +42,15 @@ class ChatRequest(BaseModel):
             raise ValueError("user_id must be 1-64 characters of letters, digits, '_' or '-'")
         return value
 
+    @field_validator("provider")
+    @classmethod
+    def provider_is_selectable(cls, value: str | None) -> str | None:
+        if value is None or value == "":
+            return None
+        if value not in _PROVIDERS:
+            raise ValueError("provider must be stub, local, remote, or route")
+        return value
+
 
 class ChatResponse(BaseModel):
     session_id: str
@@ -47,6 +60,7 @@ class ChatResponse(BaseModel):
     provider: str
     model: str
     tools: list[str] = Field(default_factory=list)
+    route: str = ""
 
 
 class HealthResponse(BaseModel):

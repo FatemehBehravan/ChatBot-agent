@@ -12,6 +12,10 @@ def mask_phones(text: str) -> str:
     return _PHONE.sub(_MASKED_PHONE, text)
 
 
+def contains_phone(text: str) -> bool:
+    return _PHONE.search(text) is not None
+
+
 def present(
     value: Any,
     *,

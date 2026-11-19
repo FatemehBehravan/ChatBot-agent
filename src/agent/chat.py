@@ -35,6 +35,7 @@ class ChatOutcome:
     provider: str
     model: str
     tools: tuple[str, ...] = ()
+    route: str = ""
 
 
 def handle_chat(
@@ -45,7 +46,9 @@ def handle_chat(
     message: str,
     session_id: str | None,
     user_id: str,
+    provider_name: str | None = None,
 ) -> ChatOutcome:
+    active = provider_name or config.app_provider
     identity = config.users.get(user_id)
     if identity is None:
         raise UnknownUserError(user_id)
@@ -74,10 +77,16 @@ def handle_chat(
             user_id=identity.user_id,
             role=identity.role,
             reply=reply,
-            provider=config.app_provider,
+            provider=active,
             model=client.model,
         )
     role = config.roles.roles.get(identity.role)
+    note_turn = getattr(client, "note_turn", None)
+    if note_turn is not None:
+        note_turn(
+            remaining_usd=config.limits.cost_limits.per_session_usd - session.cost_usd,
+            sensitive=role is not None and role.pii == "own_full",
+        )
     history = [message_from_dict(item) for item in session.messages]
 
     def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -90,7 +99,7 @@ def handle_chat(
                 role=identity.role,
                 action=name,
                 model=client.model,
-                provider=config.app_provider,
+                provider=active,
                 ok=bool(result.get("ok")),
                 order_id=_order_id(arguments),
                 outcome=outcome if isinstance(outcome, str) else None,
@@ -107,7 +116,7 @@ def handle_chat(
                     config.system_prompt,
                     role_name=identity.role,
                     role=role,
-                    provider=config.app_provider,
+                    provider=active,
                 ),
             ),
             *history,
@@ -125,12 +134,19 @@ def handle_chat(
         reply = mask_phones(reply)
         if new_messages and new_messages[-1].role == "assistant" and new_messages[-1].content == result.reply:
             new_messages = [*new_messages[:-1], replace(new_messages[-1], content=reply)]
-    session.messages.extend(message_to_dict(item) for item in new_messages)
+    served_provider, served_model, route = _served(client, active)
+    stored = [message_to_dict(item) for item in new_messages]
+    if route and stored and stored[-1].get("role") == "assistant":
+        stored[-1]["provider"] = served_provider
+        stored[-1]["model"] = served_model
+        stored[-1]["route"] = route
+    session.messages.extend(stored)
     input_tokens = estimate_tokens(message) + sum(
         estimate_tokens(item.content) for item in result.new_messages if item.role == "tool"
     )
     output_tokens = sum(estimate_tokens(item.content) for item in result.new_messages if item.role == "assistant")
-    pricing = config.provider.pricing
+    pricing_provider = config.models.providers.get(served_provider)
+    pricing = config.provider.pricing if pricing_provider is None else pricing_provider.pricing
     cost = estimate_cost(
         input_tokens,
         output_tokens,
@@ -146,10 +162,18 @@ def handle_chat(
         user_id=identity.user_id,
         role=identity.role,
         reply=reply,
-        provider=config.app_provider,
-        model=client.model,
+        provider=served_provider,
+        model=served_model,
         tools=tuple(result.tool_names),
+        route=route,
     )
+
+
+def _served(client: LLMClient, active: str) -> tuple[str, str, str]:
+    decision = getattr(client, "last_decision", None)
+    if decision is None:
+        return active, client.model, ""
+    return decision.provider, decision.model, decision.reason
 
 
 def _database(config: AppConfig) -> Path:

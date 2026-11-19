@@ -53,11 +53,13 @@ Set `APP_PROVIDER=local` in `.env` and start Compose again to chat with that mod
 
 A hosted model uses the same Compose file. Set `APP_PROVIDER=remote`, `REMOTE_BASE_URL`, `REMOTE_API_KEY`, and `REMOTE_MODEL` in `.env`, then `docker compose up --build`.
 
-Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER` chooses the model: `stub` (default, no network), `local`, or `remote`. Restart the container after changing it.
+Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER` chooses the model: `stub` (default, no network), `local`, `remote`, or `route`. Restart the container after changing it.
+
+`route` picks local or hosted for each step from `config/models.yaml`. A short call, a customer turn, and a session that is near its hosted budget stay on the local model. A step that does not fit the local window uses the hosted model. If the chosen model fails, the other one is tried. Three failures open that model's circuit for 30 seconds. If both are down, the reply says so. The chat log records the provider, model, and reason for every step, and an identical hosted answer is reused from the cache.
 
 The stub runs the same tool loop as the other providers. A delivery-time question is answered from the orders snapshot and states the sample size. A help question cites a fixture page. A support ticket or a cancellation waits until the next message confirms it.
 
-Open [http://localhost:8000/](http://localhost:8000/) for the chat page. It uses the same API. Persian text is right-aligned, and the typeface is a local system font, so the page does not fetch anything from the network. The user menu only switches the synthetic identity sent as `user_id`.
+Open [http://localhost:8000/](http://localhost:8000/) for the chat page. It uses the same API. Persian text is right-aligned, and the typeface is a local system font, so the page does not fetch anything from the network. The user menu switches the synthetic identity sent as `user_id`. The mode menu defaults to `route`, so each step follows the policy in `config/models.yaml`, and can be switched to the offline `stub`. The reply line shows which model served the turn and why.
 
 On startup the snapshot CSVs are loaded into SQLite if they changed, and the fixture knowledge pages are indexed. Crawling the public site is separate and uses the network:
 
@@ -258,10 +260,10 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] At least one documented before/after prompt iteration backed by eval results.
 
 ### Stage 9 — Hybrid routing and resilience
-- [ ] Config-driven routing policy that chooses local vs hosted per request or per step. Consider: data sensitivity, task complexity, required context length, tool-calling reliability, remaining budget, latency, availability.
-- [ ] Fallback in both directions, circuit breaker, and a graceful degraded-mode message.
-- [ ] The serving model is recorded per turn in logs/metadata.
-- [ ] At least one mechanism that cuts hosted-API usage (e.g. local model for cheap steps, caching, history compression).
+- [x] Config-driven routing policy that chooses local vs hosted per request or per step. Consider: data sensitivity, task complexity, required context length, tool-calling reliability, remaining budget, latency, availability.
+- [x] Fallback in both directions, circuit breaker, and a graceful degraded-mode message.
+- [x] The serving model is recorded per turn in logs/metadata.
+- [x] At least one mechanism that cuts hosted-API usage (e.g. local model for cheap steps, caching, history compression).
 
 ### Stage 10 — Testing and evaluation
 - [ ] Offline unit/integration tests for budgeting, RBAC, tool validation, statistics correctness, retrieval, routing and fallback — runnable inside the container.

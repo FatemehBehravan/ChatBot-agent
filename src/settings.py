@@ -83,12 +83,33 @@ class EmbeddingsConfig(BaseModel):
         return self
 
 
+class CircuitBreakerConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    failure_threshold: int = Field(ge=1)
+    cooldown_seconds: float = Field(gt=0)
+
+
+class RouteCacheConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ttl_seconds: float = Field(ge=0)
+    max_entries: int = Field(ge=1)
+
+
 class RoutingConfig(BaseModel):
+    """Which model serves a step. Thresholds live here so a change does not need code."""
+
     model_config = ConfigDict(extra="forbid")
 
     default_provider: str
     fallback_order: list[str] = Field(min_length=1)
-    rules: list[dict[str, Any]] = Field(default_factory=list)
+    cheap_input_tokens: int = Field(default=500, ge=0)
+    hosted_budget_usd: float = Field(default=0.02, ge=0)
+    circuit_breaker: CircuitBreakerConfig = Field(
+        default_factory=lambda: CircuitBreakerConfig(failure_threshold=3, cooldown_seconds=30)
+    )
+    cache: RouteCacheConfig = Field(default_factory=lambda: RouteCacheConfig(ttl_seconds=300, max_entries=128))
 
 
 class ModelsConfig(BaseModel):
@@ -114,6 +135,8 @@ class ModelsConfig(BaseModel):
             raise ValueError(
                 "routing.fallback_order references unknown providers: " + ", ".join(unknown)
             )
+        if self.routing.default_provider not in self.routing.fallback_order:
+            raise ValueError("routing.default_provider must be listed in routing.fallback_order")
         return self
 
 
@@ -272,7 +295,10 @@ class AppConfig:
 
     @property
     def provider(self) -> ProviderConfig:
-        return self.models.providers[self.app_provider]
+        name = self.app_provider
+        if name == "route":
+            name = self.models.routing.default_provider
+        return self.models.providers[name]
 
 
 def project_root() -> Path:
@@ -354,9 +380,11 @@ def _expand_string(value: str, source: str) -> str:
 def _active_provider(models: ModelsConfig) -> str:
     raw = os.environ.get("APP_PROVIDER", "stub").strip()
     if not raw:
-        raise ConfigError("APP_PROVIDER is empty. Set it to stub, local, or remote.")
+        raise ConfigError("APP_PROVIDER is empty. Set it to stub, local, remote, or route.")
+    if raw == "route":
+        return raw
     if raw not in models.providers:
-        known = ", ".join(sorted(models.providers))
+        known = ", ".join(sorted([*models.providers, "route"]))
         raise ConfigError(f"APP_PROVIDER={raw!r} is not defined. Known providers: {known}.")
     return raw
 

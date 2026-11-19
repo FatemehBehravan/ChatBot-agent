@@ -15,9 +15,11 @@
     }
     .app { max-width: 820px; height: 100vh; margin: 0 auto; display: flex; flex-direction: column; }
     header {
-      display: flex; gap: 12px; align-items: end; justify-content: space-between;
+      display: flex; gap: 12px; align-items: end; justify-content: space-between; flex-wrap: wrap;
       padding: 14px 16px; background: #0f6b4c; color: #fff;
     }
+    .switchers { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+    select { max-width: 220px; }
     h1 { margin: 0; font-size: 1.15rem; font-weight: 700; }
     header p { margin: 4px 0 0; font-size: 0.82rem; opacity: 0.9; }
     label { display: grid; gap: 4px; font-size: 0.78rem; }
@@ -27,7 +29,11 @@
     button:disabled { opacity: 0.6; cursor: wait; }
     #log { flex: 1; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
     .empty { color: #4d5c54; margin: auto; text-align: center; line-height: 1.7; }
-    .bubble { max-width: min(92%, 560px); padding: 10px 12px; border-radius: 14px; line-height: 1.7; white-space: pre-wrap; }
+    .bubble { max-width: min(92%, 560px); padding: 10px 12px; border-radius: 14px; line-height: 1.8; }
+    .bubble p, .bubble ul { margin: 0; }
+    .bubble p + p, .bubble p + ul, .bubble ul + p { margin-top: 8px; }
+    .bubble ul { padding-inline-start: 1.15em; }
+    .bubble li + li { margin-top: 4px; }
     .user { align-self: flex-start; background: #0f6b4c; color: #fff; }
     .assistant { align-self: flex-end; background: #fff; border: 1px solid #d5e0d8; }
     .error { align-self: stretch; background: #fde8e6; color: #8a2218; }
@@ -44,11 +50,20 @@
         <h1>دستیار الوپیک</h1>
         <p id="status">در حال اتصال…</p>
       </div>
-      <label>
-        کاربر آزمایشی
-        <select id="user"></select>
-      </label>
-      <button id="reset" type="button">گفتگوی تازه</button>
+      <div class="switchers">
+        <label>
+          حالت
+          <select id="mode">
+            <option value="route">سیاست ترکیبی</option>
+            <option value="stub">stub</option>
+          </select>
+        </label>
+        <label>
+          کاربر آزمایشی
+          <select id="user"></select>
+        </label>
+        <button id="reset" type="button">گفتگوی تازه</button>
+      </div>
     </header>
     <div id="log"><p class="empty">مثلاً بپرسید: برای مسیر ۵ کیلومتری با موتور در تهران تحویل چقدر طول می‌کشد؟</p></div>
     <form id="composer">
@@ -59,7 +74,20 @@
   <script>
     const log = document.querySelector("#log");
     const userSelect = document.querySelector("#user");
+    const modeSelect = document.querySelector("#mode");
     const statusLine = document.querySelector("#status");
+    const reasons = {
+      cheap: "پیام کوتاه، لوکال",
+      sensitive: "دادهٔ مشتری، لوکال",
+      sensitive_masked: "دادهٔ حساس، ماسک‌شده",
+      budget: "بودجهٔ API، لوکال",
+      context: "پنجرهٔ لوکال کافی نبود",
+      tools: "ابزار روی مدل دیگر",
+      circuit: "مدار بسته بود",
+      fallback: "مدل اول خطا داد",
+      degraded: "هر دو مدل خاموش",
+      default: "پیش‌فرض سیاست",
+    };
     const form = document.querySelector("#composer");
     const messageBox = document.querySelector("#message");
     const send = document.querySelector("#send");
@@ -95,15 +123,38 @@
       log.scrollTop = log.scrollHeight;
     }
 
+    function fillReply(container, text) {
+      let list = null;
+      for (const raw of text.split("\n")) {
+        const line = raw.trim();
+        if (!line) {
+          list = null;
+          continue;
+        }
+        if (line.startsWith("- ")) {
+          if (!list) {
+            list = document.createElement("ul");
+            container.appendChild(list);
+          }
+          const item = document.createElement("li");
+          item.textContent = line.slice(2);
+          list.appendChild(item);
+          continue;
+        }
+        list = null;
+        const para = document.createElement("p");
+        para.textContent = line;
+        container.appendChild(para);
+      }
+    }
+
     function bubble(kind, text, meta) {
       const empty = log.querySelector(".empty");
       if (empty) empty.remove();
       const item = document.createElement("article");
       item.className = "bubble " + kind;
       item.dir = persian(text) ? "rtl" : "ltr";
-      const body = document.createElement("p");
-      body.textContent = text;
-      item.appendChild(body);
+      fillReply(item, text);
       if (meta) {
         const line = document.createElement("p");
         line.className = "meta";
@@ -122,6 +173,21 @@
       return "درخواست انجام نشد.";
     }
 
+    function reasonText(code) {
+      return reasons[code] || code || "";
+    }
+
+    function showMode() {
+      statusLine.textContent = modeSelect.value === "stub" ? "stub · stub" : "سیاست ترکیبی · لوکال یا API";
+    }
+
+    modeSelect.addEventListener("change", () => {
+      modeSelect.value = modeSelect.value === "stub" ? "stub" : "route";
+      sessionStorage.setItem("alopeyk-mode", modeSelect.value);
+      sessionId = null;
+      clearLog();
+      showMode();
+    });
     userSelect.addEventListener("change", () => {
       sessionId = null;
       clearLog();
@@ -144,7 +210,12 @@
         const response = await fetch("/v1/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text, user_id: userSelect.value, session_id: sessionId }),
+          body: JSON.stringify({
+            message: text,
+            user_id: userSelect.value,
+            session_id: sessionId,
+            provider: modeSelect.value,
+          }),
         });
         const payload = await response.json();
         clearPending();
@@ -154,7 +225,9 @@
         }
         sessionId = payload.session_id;
         const tools = payload.tools && payload.tools.length ? payload.tools.join(", ") : "";
-        bubble("assistant", payload.reply, [payload.provider, payload.model, payload.role, tools].filter(Boolean).join(" · "));
+        const reason = reasonText(payload.route);
+        statusLine.textContent = [payload.provider, payload.model, reason].filter(Boolean).join(" · ");
+        bubble("assistant", payload.reply, [payload.provider, payload.model, reason, payload.role, tools].filter(Boolean).join(" · "));
       } catch (_error) {
         clearPending();
         bubble("error", "ارتباط با سرور قطع شد.");
@@ -165,8 +238,9 @@
     });
 
     Promise.all([fetch("/health"), fetch("/v1/users")]).then(async ([healthResponse, usersResponse]) => {
-      const health = await healthResponse.json();
-      statusLine.textContent = health.provider + " · " + health.model;
+      await healthResponse.json();
+      modeSelect.value = sessionStorage.getItem("alopeyk-mode") === "stub" ? "stub" : "route";
+      showMode();
       const users = await usersResponse.json();
       for (const user of users) {
         const option = document.createElement("option");

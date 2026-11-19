@@ -37,6 +37,48 @@ OUT_OF_SCOPE_EN = (
     "That is outside delivery support. I can help with orders, delivery estimates, and Alopeyk help pages."
 )
 OUT_OF_SCOPE_FA = "این درخواست خارج از پشتیبانی ارسال است. می‌توانم دربارهٔ سفارش‌ها، تخمین زمان تحویل و راهنمای الوپیک کمک کنم."
+_GREETINGS = {"سلام", "درود", "hello", "hi", "hey", "good morning", "good afternoon", "good evening"}
+_SERVICES = (
+    ("get_order_status", "وضعیت یک سفارش را با شماره‌اش بگویم", "look up an order from its id"),
+    ("list_my_orders", "سفارش‌های خودتان را فهرست کنم", "list your own orders"),
+    ("search_orders", "بین سفارش‌ها جستجو کنم", "search orders"),
+    ("estimate_delivery_time", "زمان معمول تحویل را برای یک مسیر تخمین بزنم", "estimate a typical delivery time"),
+    ("estimate_price_range", "بازهٔ قیمت را از سفارش‌های قبلی بگویم", "give a price range from past orders"),
+    ("search_knowledge_base", "راهنمای الوپیک را برای بسته‌بندی و قوانین ارسال پیدا کنم", "find Alopeyk help pages"),
+    ("create_support_ticket", "برای یک سفارش تیکت پشتیبانی ثبت کنم", "open a support ticket"),
+    (
+        "request_order_cancellation",
+        "لغو سفارش را پیش از تحویل‌گیری به پیک ثبت کنم",
+        "request a cancellation before pickup",
+    ),
+)
+_EXAMPLES = (
+    (
+        "estimate_delivery_time",
+        "مثلاً بپرسید: برای مسیر ۵ کیلومتری با موتور در تهران تحویل چقدر طول می‌کشد؟",
+        "For example: how long does a 5 km motorcycle delivery in Tehran usually take?",
+    ),
+    (
+        "estimate_price_range",
+        "مثلاً بپرسید: قیمت مسیر ۵ کیلومتری با موتور معمولاً چقدر است؟",
+        "For example: what does a 5 km motorcycle delivery usually cost?",
+    ),
+    (
+        "search_knowledge_base",
+        "مثلاً بپرسید: اقلام شکستنی را چطور بسته‌بندی کنم؟",
+        "For example: how should I pack something fragile?",
+    ),
+    (
+        "list_my_orders",
+        "مثلاً بگویید: می‌خواهم سفارش‌هایم را ببینم.",
+        "For example: show me my orders.",
+    ),
+    (
+        "get_order_status",
+        "مثلاً شمارهٔ سفارش را بفرستید، مثل A-246001.",
+        "For example, send an order id such as A-246001.",
+    ),
+)
 CLARIFY_EN = "Which order id should I check?"
 CLARIFY_FA = "شمارهٔ کدام سفارش را بررسی کنم؟"
 _STATUS_FA = {
@@ -67,6 +109,9 @@ def _from_user(
         if previous and _asked_to_confirm(messages):
             return _start_write(previous, available, persian)
         return _say(CLARIFY_FA if persian else "What should I confirm?")
+
+    if _is_greeting(folded):
+        return _say(greeting(available, persian))
 
     if "drop table" in folded or "distance_km" in folded:
         quoted = re.search(r'distance_km\s*=\s*"([^"]*)"', user_text, re.IGNORECASE)
@@ -186,6 +231,25 @@ def _render(
             else "I will not estimate a time from that input."
         )
     return OUT_OF_SCOPE_FA if persian else OUT_OF_SCOPE_EN
+
+
+def greeting(available: set[str], persian: bool) -> str:
+    chosen = [item for item in _SERVICES if not available or item[0] in available] or list(_SERVICES)
+    lines = [item[1] if persian else item[2] for item in chosen]
+    names = {item[0] for item in chosen}
+    example = next((item for item in _EXAMPLES if not names or item[0] in names), None)
+    if persian:
+        text = "سلام. من دستیار ارسال الوپیک هستم و این کارها را می‌توانم برایتان انجام دهم:\n- " + "\n- ".join(lines)
+    else:
+        text = "Hello. I am the Alopeyk delivery assistant, and I can:\n- " + "\n- ".join(lines)
+    if example is None:
+        return text
+    return text + "\n\n" + (example[1] if persian else example[2])
+
+
+def _is_greeting(folded: str) -> bool:
+    text = re.sub(r"^[\s!?.،,؟]+|[\s!?.،,؟]+$", "", folded.strip())
+    return text in _GREETINGS
 
 
 def _cancel_decision(arguments: dict, result: dict, persian: bool) -> str:

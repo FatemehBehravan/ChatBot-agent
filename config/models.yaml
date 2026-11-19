@@ -23,9 +23,9 @@ providers:
     supports_tool_calling: true
     timeout_seconds: 30
     data_policy: masked_only      # PII must be masked before leaving the machine
-    pricing:                      # fill from your provider's current price list
-      input_per_1m_tokens: null
-      output_per_1m_tokens: null
+    pricing:                      # placeholder until the provider's price list is filled in
+      input_per_1m_tokens: 0.15
+      output_per_1m_tokens: 0.60
 
   stub:
     type: stub                    # deterministic fake for offline tests
@@ -40,7 +40,16 @@ embeddings:                       # optional; leave unused if you choose keyword
   model: ${EMBEDDING_MODEL}
 
 routing:
+  # APP_PROVIDER=route uses this policy on every model step.
+  # Short calls and customer data stay on the unpriced local model.
+  # A step that does not fit the local window, or a provider that is failing, uses the other one.
   default_provider: local
   fallback_order: [local, remote]
-  # TODO(candidate): design the policy (rules, scoring, thresholds, circuit breaker).
-  rules: []
+  cheap_input_tokens: 500
+  hosted_budget_usd: 0.02
+  circuit_breaker:
+    failure_threshold: 3
+    cooldown_seconds: 30
+  cache:
+    ttl_seconds: 300
+    max_entries: 128

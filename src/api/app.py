@@ -13,7 +13,7 @@ from src.api.schemas import ChatRequest, ChatResponse, HealthResponse
 from src.knowledge.index import index_seed
 from src.data.load import load_snapshot
 from src.llm.errors import LLMError
-from src.llm.factory import build_client
+from src.llm.factory import build_clients
 from src.security.identity import UnknownUserError
 from src.settings import AppConfig
 from src.stateprep import prepare_state
@@ -38,7 +38,7 @@ def create_app(config: AppConfig) -> FastAPI:
     app = FastAPI(title="Alopeyk Delivery Assistant", version="0.1.0", default_response_class=UTF8JSONResponse)
     app.state.config = config
     app.state.sessions = SessionStore(config.state_dir / "sessions")
-    app.state.client = build_client(config)
+    app.state.clients = build_clients(config)
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -55,16 +55,32 @@ def create_app(config: AppConfig) -> FastAPI:
             for user in config.users.values()
         ]
 
+    @app.get("/v1/providers")
+    def list_providers() -> list[dict[str, str]]:
+        listed = [
+            {"provider": name, "model": provider.model or name}
+            for name in ("stub", "local", "remote")
+            if (provider := config.models.providers.get(name)) is not None
+        ]
+        if "route" in app.state.clients:
+            listed.insert(0, {"provider": "route", "model": "policy"})
+        return listed
+
     @app.post("/v1/chat", response_model=ChatResponse)
     def chat(body: ChatRequest) -> ChatResponse:
+        selected = body.provider or config.app_provider
+        client = app.state.clients.get(selected)
+        if client is None:
+            raise HTTPException(status_code=400, detail=f"unknown provider {selected!r}")
         try:
             outcome = handle_chat(
                 config,
                 app.state.sessions,
-                app.state.client,
+                client,
                 message=body.message,
                 session_id=body.session_id,
                 user_id=body.user_id,
+                provider_name=selected,
             )
         except LLMError as exc:
             raise HTTPException(status_code=502, detail={"error": type(exc).__name__, "message": str(exc)}) from exc
@@ -78,10 +94,12 @@ def create_app(config: AppConfig) -> FastAPI:
         except SessionForbiddenError as exc:
             raise HTTPException(status_code=403, detail="session belongs to a different user") from exc
         logger.info(
-            "chat user_id=%s session_id=%s provider=%s message_chars=%d",
+            "chat user_id=%s session_id=%s provider=%s model=%s route=%s message_chars=%d",
             outcome.user_id,
             outcome.session_id,
             outcome.provider,
+            outcome.model,
+            outcome.route or "-",
             len(body.message),
         )
         return ChatResponse(
@@ -92,6 +110,7 @@ def create_app(config: AppConfig) -> FastAPI:
             provider=outcome.provider,
             model=outcome.model,
             tools=list(outcome.tools),
+            route=outcome.route,
         )
 
     return app
