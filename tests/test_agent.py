@@ -1,10 +1,13 @@
 import json
 import re
+from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
+from src.agent.answers import finish_reply, reply_after_tools
 from src.agent.loop import run_agent
 from src.llm.stub_policy import CLARIFY_EN, CLARIFY_FA, OUT_OF_SCOPE_EN
+from src.llm.tool_text import tool_call_from_text
 from src.llm.types import ChatMessage, Completion, ToolCall
 
 _MEDIAN = re.compile(r"in-transit median is (\d+(?:\.\d+)?)")
@@ -157,6 +160,69 @@ def test_knowledge_writes_and_unclear_requests(config):
     assert "Support ticket T-" in second["reply"]
 
 
+def test_text_shaped_tool_call_still_answers_from_the_snapshot():
+    written = (
+        ' orm\n{"name": "estimate_delivery_time", "arguments": '
+        '{"distance_km": 5, "city": "تهران", "vehicle_type": "motorcycle"}}\n</tool_call>'
+    )
+    result = run_agent(
+        _Recovering([Completion(content=written, model="script")]),
+        [ChatMessage(role="user", content="برای مسیر ۵ کیلومتری با موتور در تهران تحویل چقدر طول می‌کشد؟")],
+        tools=[{"name": "estimate_delivery_time"}],
+        execute=lambda _name, _args: {
+            "ok": True,
+            "insufficient_data": False,
+            "sample_size": 40,
+            "in_transit_minutes": {"median": 18.4, "p80": 27.0},
+            "total_minutes": {"median": 31.0, "p80": 44.0},
+        },
+        max_steps=6,
+        max_identical=2,
+        after_tools=reply_after_tools,
+        finalize=finish_reply,
+    )
+    assert result.tool_names == ["estimate_delivery_time"]
+    assert "18.4" in result.reply
+    assert "tool_call" not in result.reply
+
+
+def test_estimate_reply_uses_the_tool_median_when_the_model_omits_it():
+    result = run_agent(
+        _Scripted(
+            [
+                Completion(
+                    content="",
+                    model="script",
+                    tool_calls=(
+                        ToolCall(
+                            "1",
+                            "estimate_delivery_time",
+                            '{"distance_km": 5, "vehicle_type": "motorcycle", "city": "تهران"}',
+                        ),
+                    ),
+                ),
+                Completion(content="داده معتبری برای تخمین زمان تحویل نداریم. با پشتیبانی تماس بگیرید.", model="script"),
+            ]
+        ),
+        [ChatMessage(role="user", content="برای مسیر ۵ کیلومتری با موتور در تهران تحویل چقدر طول می‌کشد؟")],
+        tools=[{"name": "estimate_delivery_time"}],
+        execute=lambda _name, _args: {
+            "ok": True,
+            "insufficient_data": False,
+            "sample_size": 40,
+            "in_transit_minutes": {"median": 18.4, "p80": 27.0},
+            "total_minutes": {"median": 31.0, "p80": 44.0},
+        },
+        max_steps=6,
+        max_identical=2,
+        after_tools=reply_after_tools,
+        finalize=finish_reply,
+    )
+    assert "18.4" in result.reply
+    assert "تعداد نمونه 40" in result.reply
+    assert "پشتیبانی" not in result.reply
+
+
 def test_loop_stops_on_bad_calls_failures_and_repetition():
     def run(completions, execute, **limits):
         client = _Scripted(completions)
@@ -228,6 +294,16 @@ class _Scripted:
         del messages, max_tokens, tools
         self.calls += 1
         return self._items.pop(0)
+
+
+class _Recovering(_Scripted):
+    def complete(self, messages, *, max_tokens=None, tools=None):
+        completion = super().complete(messages, max_tokens=max_tokens, tools=tools)
+        if tools and not completion.tool_calls:
+            recovered = tool_call_from_text(completion.content or "", tools)
+            if recovered is not None:
+                return replace(completion, content="", tool_calls=(recovered,))
+        return completion
 
 
 def create_app(config):

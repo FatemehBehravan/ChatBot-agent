@@ -1,14 +1,16 @@
 """Deterministic stand-in for a tool-calling model.
 
 The agent loop is the same one a live model uses. This module only decides
-the next tool call or the final sentence, so the offline suite can exercise
-that loop without a network.
+the next tool call. Sentences that restate a tool result come from
+src.agent.answers, which the live turn uses as well.
 """
 
 import json
 import re
 import uuid
 
+from src.agent.answers import STATUS_FA as _STATUS_FA
+from src.agent.answers import estimate_reply, format_own_orders, own_orders_requested, two_periods
 from src.llm.types import ChatMessage, ToolCall
 
 _PERSIAN = re.compile(r"[\u0600-\u06FF]")
@@ -81,14 +83,6 @@ _EXAMPLES = (
 )
 CLARIFY_EN = "Which order id should I check?"
 CLARIFY_FA = "شمارهٔ کدام سفارش را بررسی کنم؟"
-_STATUS_FA = {
-    "searching_courier": "در جستجوی پیک",
-    "courier_assigned": "پیک تعیین شده",
-    "in_transit": "در حال حمل",
-    "delivered": "تحویل‌شده",
-    "cancelled_by_customer": "لغو شده توسط مشتری",
-    "cancelled_no_courier": "لغو شده چون پیکی نبود",
-}
 
 
 def plan(messages: list[ChatMessage], tools: list[dict] | None) -> tuple[str, list[ToolCall]]:
@@ -293,66 +287,12 @@ def _missing(order_id: str, persian: bool) -> str:
     return "I could not find that order on this account."
 
 
-def format_own_orders(rows: list, persian: bool) -> str:
-    shown: list[str] = []
-    for row in rows[:20]:
-        if not isinstance(row, dict):
-            continue
-        order_id = str(row.get("order_id") or "")
-        if not order_id:
-            continue
-        status = str(row.get("status") or "")
-        label = _STATUS_FA.get(status, status) if persian else status
-        shown.append(f"{order_id} ({label})" if label else order_id)
-    if not shown:
-        if persian:
-            return "سفارشی برای این حساب در پایگاه سفارش‌ها پیدا نکردم."
-        return "I could not find any orders on this account in the orders database."
-    body = "، ".join(shown) if persian else ", ".join(shown)
-    if persian:
-        return f"این سفارش‌ها را از پایگاه سفارش‌ها خواندم: {body}."
-    return f"These orders come from the orders database: {body}."
-
-
-def wants_own_orders(text: str) -> bool:
-    return _wants_own_orders(text.translate(_DIGITS).lower())
-
-
 def _search_answer(result: dict, persian: bool) -> str:
     return format_own_orders(result.get("orders") or [], persian)
 
 
 def _stats_answer(name: str, result: dict, persian: bool) -> str:
-    if not result.get("ok") or result.get("insufficient_data") or result.get("error"):
-        if persian:
-            return "داده کافی برای این تخمین وجود ندارد، پس عددی اعلام نمی‌کنم. این یک تضمین نیست."
-        return "There is not enough data for that estimate, so I will not give a number. This is not a guarantee."
-    sample = result.get("sample_size")
-    if name == "estimate_price_range":
-        price = result.get("price_toman") or {}
-        if persian:
-            return (
-                f"میانهٔ قیمت {price.get('median')} تومان است و بازهٔ معمول تا {price.get('p80')} تومان. "
-                f"تعداد نمونه {sample} سفارش تحویل‌شده از اسنپ‌شات. این یک تضمین نیست."
-            )
-        return (
-            f"The median price is {price.get('median')} toman (typical range up to {price.get('p80')}). "
-            f"Sample size {sample} delivered orders from the snapshot. This is not a guarantee."
-        )
-    transit = result.get("in_transit_minutes") or {}
-    total = result.get("total_minutes") or {}
-    if persian:
-        return (
-            f"میانهٔ زمان حمل {transit.get('median')} دقیقه است (بازهٔ معمول تا {transit.get('p80')} دقیقه). "
-            f"زمان کل از ثبت سفارش میانهٔ {total.get('median')} دقیقه است. "
-            f"تعداد نمونه {sample} سفارش تحویل‌شده از اسنپ‌شات. این یک تضمین نیست."
-        )
-    return (
-        f"Once the courier has picked up the parcel, the in-transit median is {transit.get('median')} minutes "
-        f"(typical range up to {transit.get('p80')} minutes). "
-        f"Total time since the order was created has median {total.get('median')} minutes. "
-        f"Sample size {sample} delivered orders from the snapshot. This is not a guarantee."
-    )
+    return estimate_reply(name, result, persian)
 
 
 def _compare_periods(done: list[tuple[str, dict, dict]], persian: bool) -> str:
@@ -609,9 +549,7 @@ def _directory_status(folded: str) -> str | None:
 
 
 def _wants_both_periods(folded: str) -> bool:
-    evening = "evening" in folded or "17:00" in folded or "عصر" in folded
-    night = "night" in folded or "00:00" in folded or "شب" in folded
-    return evening and night
+    return two_periods(folded)
 
 
 def _wants_eta(folded: str) -> bool:
@@ -652,18 +590,7 @@ def _refers_to_an_order(folded: str) -> bool:
 
 
 def _wants_own_orders(folded: str) -> bool:
-    if _wants_knowledge(folded) or _wants_cancel(folded) or _wants_ticket(folded):
-        return False
-    if any(
-        phrase in folded
-        for phrase in ("my orders", "my order", "track my", "سفارش‌های من", "سفارشهای من", "سفارشم")
-    ):
-        return True
-    if "پیگیری" in folded and "سفارش" in folded:
-        return True
-    return "سفارش" in folded and any(
-        word in folded for word in ("نمیدانم", "نمی‌دانم", "نمیدونم", "نمی دونم", "ندارم")
-    )
+    return own_orders_requested(folded)
 
 
 def _wants_knowledge(folded: str) -> bool:

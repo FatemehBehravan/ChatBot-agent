@@ -1,5 +1,13 @@
 # Prompt changelog
 
+## 1.2.3 — 2026-11-19
+
+The hosted model is `gemini-2.5-flash-lite` through the gateway in `.env`. Its addendum now repeats the tool, sample-size, source, and confirmation rules. The evaluation showed it answering those turns from its own text.
+
+## 1.2.2 — 2026-11-19
+
+A 5 km motorcycle delivery in Tehran was answered as if the snapshot had no rows. The local model called `estimate_delivery_time` with `city=تهران`, and the snapshot stores `Tehran`, so the tool returned an empty sample. Tool arguments now map Persian city and vehicle names onto the snapshot values. The local addendum tells the model to quote a returned median instead of sending the user to support.
+
 ## 1.2.1 — 2026-11-18
 
 A customer who asks to track their order without an id was told to type the id, including after they said they did not know it. The system prompt and the local addendum now say to call `list_my_orders` and answer from that list. Asking for an id stays only for roles that do not have that tool.

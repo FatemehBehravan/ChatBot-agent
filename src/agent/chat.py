@@ -4,7 +4,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-from src.agent.loop import message_from_dict, message_to_dict, run_agent
+from src.agent.answers import finish_reply, prepare_turn, read_own_orders, reply_after_tools
+from src.agent.loop import AgentResult, message_from_dict, message_to_dict, run_agent
 from src.agent.prompt import assemble_prompt
 from src.agent.session import SessionStore
 from src.context.budget import add_user_usage, blocked_message, over_limit, read_user_usage
@@ -106,28 +107,37 @@ def handle_chat(
             )
         return result
 
-    result = run_agent(
-        client,
-        [
-            ChatMessage(
-                role="system",
-                content=assemble_prompt(
-                    config.project_root,
-                    config.system_prompt,
-                    role_name=identity.role,
-                    role=role,
-                    provider=active,
-                ),
+    messages = [
+        ChatMessage(
+            role="system",
+            content=assemble_prompt(
+                config.project_root,
+                config.system_prompt,
+                role_name=identity.role,
+                role=role,
+                provider=active,
             ),
-            *history,
-        ],
-        tools=tool_catalog(role) if role is not None else [],
-        execute=execute,
-        max_steps=config.limits.agent_loop.max_steps,
-        max_identical=config.limits.agent_loop.max_identical_tool_calls,
-        context_window=client.capabilities.context_window,
-        limits=config.limits,
-    )
+        ),
+        *history,
+    ]
+    tools = tool_catalog(role) if role is not None else []
+    owned = read_own_orders(messages, tools, execute) or prepare_turn(messages, tools, execute)
+    if owned is None:
+        result = run_agent(
+            client,
+            messages,
+            tools=tools,
+            execute=execute,
+            max_steps=config.limits.agent_loop.max_steps,
+            max_identical=config.limits.agent_loop.max_identical_tool_calls,
+            context_window=client.capabilities.context_window,
+            limits=config.limits,
+            after_tools=reply_after_tools,
+            finalize=finish_reply,
+        )
+    else:
+        reply, new_messages, tool_names = owned
+        result = AgentResult(reply, new_messages, tool_names)
     reply = result.reply
     new_messages = result.new_messages
     if role is not None and role.pii != "own_full":

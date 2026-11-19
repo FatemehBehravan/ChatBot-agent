@@ -23,7 +23,7 @@ def test_chat_page_and_user_switcher(config):
     assert providers.json()[0] == {"provider": "route", "model": "policy"}
     assert {"provider": "stub", "model": "stub"} in providers.json()
     assert {"provider": "local", "model": "qwen2.5:7b-instruct"} in providers.json()
-    assert {"provider": "remote", "model": "replace-with-a-low-cost-model"} in providers.json()
+    assert {"provider": "remote", "model": "gemini-2.5-flash-lite"} in providers.json()
     assert "replace-me" not in providers.text
 
     users = client.get("/v1/users")

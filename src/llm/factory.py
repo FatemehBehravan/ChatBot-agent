@@ -32,6 +32,7 @@ def build_clients(
         routed,
         config.models.routing,
         config.limits,
+        stub=clients.get("stub"),
     )
     return clients
 

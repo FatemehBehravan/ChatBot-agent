@@ -67,9 +67,16 @@ def _providers(*, local_window: int = 8192, local_tools: bool = True) -> dict[st
     }
 
 
-def _client(config, local: Fake, remote: Fake, providers: dict[str, ProviderConfig], **routing):
+def _client(config, local: Fake, remote: Fake, providers: dict[str, ProviderConfig], stub: Fake | None = None, **routing):
     policy = config.models.routing.model_copy(update=routing) if routing else config.models.routing
-    return RoutingClient(providers, {"local": local, "remote": remote}, policy, config.limits, clock=routing.get("clock"))
+    return RoutingClient(
+        providers,
+        {"local": local, "remote": remote},
+        policy,
+        config.limits,
+        clock=routing.get("clock"),
+        stub=stub,
+    )
 
 
 def test_cheap_and_sensitive_turns_stay_off_the_hosted_model(config):
@@ -140,16 +147,47 @@ def test_fallback_runs_in_both_directions_and_then_degrades(config):
     assert other.last_decision.reason == "fallback"
     assert other.last_decision.fallback_from == "remote"
 
-    both = _client(config, Fake("local", (timeout,)), Fake("remote", (LLMTimeoutError("timed out"),)), providers)
-    assert both.complete([ChatMessage(role="user", content="hello")]).content == DEGRADED_EN
+    local_down, remote_down, stub = Fake("local", (timeout,)), Fake("remote", (LLMTimeoutError("timed out"),)), Fake("stub")
+    both = _client(config, local_down, remote_down, providers, stub)
+    assert both.complete([ChatMessage(role="user", content="hello")]).content == "ok-stub"
+    assert both.last_decision.provider == "stub"
+    assert both.last_decision.model == "stub-model"
     assert both.last_decision.reason == "degraded"
+    assert both.last_decision.fallback_from == "remote"
+    assert stub.calls == 1
+
+    persian_stub = Fake("stub")
     persian = _client(
         config,
         Fake("local", (LLMTimeoutError("timed out"),)),
         Fake("remote", (LLMTimeoutError("timed out"),)),
         providers,
+        persian_stub,
     )
-    assert persian.complete([ChatMessage(role="user", content="سلام")]).content == DEGRADED_FA
+    assert persian.complete([ChatMessage(role="user", content="سلام")]).content == "ok-stub"
+    assert persian_stub.seen[0][-1].content == "سلام"
+
+    missing = _client(config, Fake("local", (timeout,)), Fake("remote", (LLMTimeoutError("timed out"),)), providers)
+    assert missing.complete([ChatMessage(role="user", content="hello")]).content == DEGRADED_EN
+
+    breaker = config.models.routing.circuit_breaker.model_copy(update={"failure_threshold": 1, "cooldown_seconds": 30})
+    closed_local = Fake("local", (timeout,))
+    closed_remote = Fake("remote", (LLMTimeoutError("timed out"),))
+    closed_stub = Fake("stub")
+    closed = RoutingClient(
+        providers,
+        {"local": closed_local, "remote": closed_remote},
+        config.models.routing.model_copy(update={"circuit_breaker": breaker}),
+        config.limits,
+        clock=lambda: 0.0,
+        stub=closed_stub,
+    )
+    assert closed.complete([ChatMessage(role="user", content="hello")]).content == "ok-stub"
+    skipped = closed.complete([ChatMessage(role="user", content="hello again")])
+    assert skipped.content == "ok-stub"
+    assert closed_local.calls == 1
+    assert closed_remote.calls == 1
+    assert closed_stub.calls == 2
 
 
 def test_circuit_opens_and_a_later_step_skips_the_failed_model(config):

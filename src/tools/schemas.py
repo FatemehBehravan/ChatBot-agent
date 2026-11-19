@@ -2,7 +2,50 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+# The snapshot stores English names. A local model often copies the user's Persian wording.
+_CITY_ALIASES = {
+    "tehran": "Tehran",
+    "تهران": "Tehran",
+    "karaj": "Karaj",
+    "کرج": "Karaj",
+    "isfahan": "Isfahan",
+    "esfahan": "Isfahan",
+    "اصفهان": "Isfahan",
+    "mashhad": "Mashhad",
+    "مشهد": "Mashhad",
+    "shiraz": "Shiraz",
+    "شیراز": "Shiraz",
+    "tabriz": "Tabriz",
+    "تبریز": "Tabriz",
+}
+_VEHICLE_ALIASES = {
+    "motorcycle": "motorcycle",
+    "motor": "motorcycle",
+    "motorbike": "motorcycle",
+    "موتور": "motorcycle",
+    "موتورسیکلت": "motorcycle",
+    "موتور سیکلت": "motorcycle",
+    "car": "car",
+    "ماشین": "car",
+    "خودرو": "car",
+    "اتومبیل": "car",
+    "van": "van",
+    "وانت": "van",
+}
+
+
+def _canonical(value: object, aliases: dict[str, str]) -> object:
+    if not isinstance(value, str):
+        return value
+    text = value.strip().strip(" .،,")
+    if text.startswith("شهر"):
+        text = text.removeprefix("شهر").strip()
+    if not text:
+        return None
+    return aliases.get(text.casefold(), text)
+
 
 OrderStatus = Literal[
     "searching_courier",
@@ -36,6 +79,11 @@ class SearchOrdersInput(BaseModel):
     order_id: str | None = Field(default=None, pattern=r"^A-[0-9]+$", max_length=32)
     limit: int = Field(default=20, ge=1, le=20)
 
+    @field_validator("city", mode="before")
+    @classmethod
+    def city_matches_snapshot(cls, value: object) -> object:
+        return _canonical(value, _CITY_ALIASES)
+
     @model_validator(mode="after")
     def at_least_one_filter(self) -> "SearchOrdersInput":
         if self.city is None and self.status is None and self.order_id is None:
@@ -51,6 +99,16 @@ class EstimateInput(BaseModel):
     city: str | None = Field(default=None, max_length=40)
     hour_from: int | None = Field(default=None, ge=0, le=23)
     hour_to: int | None = Field(default=None, ge=0, le=23)
+
+    @field_validator("city", mode="before")
+    @classmethod
+    def city_matches_snapshot(cls, value: object) -> object:
+        return _canonical(value, _CITY_ALIASES)
+
+    @field_validator("vehicle_type", mode="before")
+    @classmethod
+    def vehicle_matches_snapshot(cls, value: object) -> object:
+        return _canonical(value, _VEHICLE_ALIASES)
 
     @model_validator(mode="after")
     def hours_are_a_window(self) -> "EstimateInput":

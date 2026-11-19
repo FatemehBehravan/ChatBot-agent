@@ -1,4 +1,7 @@
-"""One client that serves each step from local or hosted, then the other if that call fails."""
+"""One client that serves each step from local or hosted, then the other if that call fails.
+
+When both are unavailable, the same step is answered by the offline stub.
+"""
 
 import logging
 import time
@@ -44,12 +47,14 @@ class RoutingClient:
         limits: LimitsConfig,
         *,
         clock: Callable[[], float] | None = None,
+        stub: LLMClient | None = None,
     ) -> None:
         self.provider_name = "route"
         self._providers = providers
         self._clients = clients
         self._routing = routing
         self._limits = limits
+        self._stub = stub
         self._clock = clock or time.monotonic
         default = providers[routing.default_provider]
         self.model = default.model or routing.default_provider
@@ -93,7 +98,7 @@ class RoutingClient:
             sensitive=self._sensitive,
         )
         if not choices:
-            return self._degraded(messages, fallback_from="")
+            return self._degraded(messages, fallback_from="", max_tokens=max_tokens, tools=tools)
         fallback_from = ""
         for choice in choices:
             prepared, prepared_tools = self._prepare(choice.provider, messages, tools, masked=choice.masked)
@@ -128,7 +133,7 @@ class RoutingClient:
                 )
             )
             return completion
-        return self._degraded(messages, fallback_from=fallback_from)
+        return self._degraded(messages, fallback_from=fallback_from, max_tokens=max_tokens, tools=tools)
 
     def stream(
         self,
@@ -166,7 +171,37 @@ class RoutingClient:
             limits=self._limits,
         )
 
-    def _degraded(self, messages: list[ChatMessage], *, fallback_from: str) -> Completion:
+    def _degraded(
+        self,
+        messages: list[ChatMessage],
+        *,
+        fallback_from: str,
+        max_tokens: int | None,
+        tools: list[dict] | None,
+    ) -> Completion:
+        if self._stub is not None:
+            prepared, prepared_tools = fit_context(
+                messages,
+                tools=list(tools or []),
+                window=self._stub.capabilities.context_window,
+                limits=self._limits,
+            )
+            try:
+                completion = self._stub.complete(
+                    prepared, max_tokens=max_tokens, tools=prepared_tools or None
+                )
+            except LLMError:
+                logger.info("route stub failed")
+            else:
+                self._remember(
+                    RouteDecision(
+                        provider=self._stub.provider_name,
+                        model=completion.model,
+                        reason="degraded",
+                        fallback_from=fallback_from,
+                    )
+                )
+                return completion
         content = DEGRADED_FA if _persian(messages) else DEGRADED_EN
         completion = Completion(content=content, model="unavailable")
         self._remember(

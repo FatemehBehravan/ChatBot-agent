@@ -201,3 +201,19 @@ scenarios:
       and return a clear message, not crash or silently truncate.
     checks:
       must_include_any: ["limit", "سقف", "محدودیت"]
+
+  - id: own-orders-without-id-fa
+    user: u-cust-1001
+    turns: ["می‌خواهم سفارشم را ببینم."]
+    checks:
+      must_call: [list_my_orders]
+      must_include: ["A-246001"]
+      language: fa
+
+  - id: price-motorcycle-5km-tehran-fa
+    user: u-anon
+    turns: ["قیمت مسیر ۵ کیلومتری با موتور در تهران معمولاً چقدر است؟"]
+    checks:
+      must_call: [estimate_price_range]
+      cites_sample_size: true
+      language: fa

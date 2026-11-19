@@ -2,23 +2,22 @@
 
 The step ceiling and the repeated-call stop come from config/limits.yaml.
 A bad tool call becomes a structured observation the model can answer from.
+What the user reads after a tool returns is decided outside this loop.
 """
 
 import json
-import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from src.context.budget import fit_context
 from src.llm.base import LLMClient
-from src.llm.stub_policy import format_own_orders, wants_own_orders
 from src.llm.types import ChatMessage, ToolCall
 from src.settings import LimitsConfig
 
-_PERSIAN = re.compile(r"[\u0600-\u06FF]")
-_ORDER_ID = re.compile(r"A-\d+", re.IGNORECASE)
 Execute = Callable[[str, dict[str, Any]], dict[str, Any]]
+AfterTools = Callable[[list[ChatMessage]], str | None]
+Finalize = Callable[[list[ChatMessage], str], str]
 
 
 @dataclass(frozen=True)
@@ -38,14 +37,13 @@ def run_agent(
     max_identical: int,
     context_window: int | None = None,
     limits: LimitsConfig | None = None,
+    after_tools: AfterTools | None = None,
+    finalize: Finalize | None = None,
 ) -> AgentResult:
     transcript = list(messages)
     names: list[str] = []
     seen: dict[str, int] = {}
     steps = 0
-    listed = _list_own_orders(transcript, tools, execute, names)
-    if listed is not None:
-        return _finish(transcript, len(messages), listed, names)
 
     def complete(tool_list: list[dict]):
         if context_window is None or limits is None:
@@ -56,7 +54,8 @@ def run_agent(
     while True:
         completion = complete(tools)
         if not completion.tool_calls:
-            return _finish(transcript, len(messages), completion.content or _empty(transcript), names)
+            content = completion.content or _empty(transcript)
+            return _finish(transcript, len(messages), _final(finalize, transcript, content), names)
         if steps >= max_steps:
             return _finish(transcript, len(messages), _stopped(transcript, "steps"), names)
         steps += 1
@@ -89,7 +88,11 @@ def run_agent(
             final = complete([])
             if final.tool_calls or not final.content:
                 return _finish(transcript, len(messages), _stopped(transcript, "repeated"), names)
-            return _finish(transcript, len(messages), final.content, names)
+            return _finish(transcript, len(messages), _final(finalize, transcript, final.content), names)
+        if after_tools is not None:
+            direct = after_tools(transcript)
+            if direct is not None:
+                return _finish(transcript, len(messages), direct, names)
 
 
 def message_to_dict(message: ChatMessage) -> dict[str, Any]:
@@ -119,35 +122,6 @@ def message_from_dict(data: dict[str, Any]) -> ChatMessage:
     )
 
 
-def _list_own_orders(
-    transcript: list[ChatMessage], tools: list[dict], execute: Execute, names: list[str]
-) -> str | None:
-    """Read this customer's orders before the model speaks.
-
-    A small local model otherwise asks for an order id, including after the
-    user says they do not know it. The lookup is already allowed for the role.
-    """
-    if not any(tool.get("name") == "list_my_orders" for tool in tools):
-        return None
-    user = _latest_user(transcript)
-    if not user or _ORDER_ID.search(user) or not wants_own_orders(user):
-        return None
-    call = ToolCall(id="call-orders", name="list_my_orders", arguments='{"limit": 5}')
-    names.append(call.name)
-    transcript.append(ChatMessage(role="assistant", content="", tool_calls=(call,)))
-    observation = _run_call(call, execute)
-    transcript.append(
-        ChatMessage(
-            role="tool",
-            content=json.dumps(observation, ensure_ascii=False),
-            tool_call_id=call.id,
-            name=call.name,
-        )
-    )
-    rows = observation.get("orders") if isinstance(observation, dict) else None
-    return format_own_orders(rows if isinstance(rows, list) else [], _persian(transcript))
-
-
 def _run_call(call: ToolCall, execute: Execute) -> dict[str, Any]:
     if not call.name.strip():
         return {"ok": False, "error": "malformed_tool_call", "message": "The tool call had no name."}
@@ -171,6 +145,12 @@ def _finish(transcript: list[ChatMessage], start: int, reply: str, names: list[s
     return AgentResult(reply=reply, new_messages=transcript[start:], tool_names=names)
 
 
+def _final(finalize: Finalize | None, transcript: list[ChatMessage], content: str) -> str:
+    if finalize is None:
+        return content
+    return finalize(transcript, content)
+
+
 def _latest_user(messages: list[ChatMessage]) -> str:
     for message in reversed(messages):
         if message.role == "user":
@@ -179,7 +159,7 @@ def _latest_user(messages: list[ChatMessage]) -> str:
 
 
 def _persian(messages: list[ChatMessage]) -> bool:
-    return bool(_PERSIAN.search(_latest_user(messages)))
+    return any("\u0600" <= char <= "\u06ff" for char in _latest_user(messages))
 
 
 def _empty(messages: list[ChatMessage]) -> str:

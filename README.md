@@ -30,10 +30,17 @@ State directories (sessions, database, retrieval index, audit log) are created o
 docker compose run --rm --no-deps app python /app/scripts/prepare_state.py
 ```
 
-Offline tests run in the built image with networking disabled:
+Offline tests cover budgeting, access control, tool validation, statistics, retrieval, routing, and fallback. They run in the built image with networking disabled:
 
 ```bash
 docker run --rm --network none -v "./data:/app/data:ro" alopeyk-agent-app python -m pytest -q
+```
+
+The same image can score the stub on `evals/scenarios.yaml`. Pass rate, tokens, latency, and cost are printed per provider. `local` and `remote` use the same scenarios when those providers are configured:
+
+```bash
+python evals/run_evals.py stub
+python evals/run_evals.py local remote
 ```
 
 The container starts as root only long enough to create the state volume, then the server process runs as uid 10001. `docker compose exec` opens a separate root shell, so read the server process instead:
@@ -51,11 +58,11 @@ docker compose exec ollama ollama pull qwen2.5:7b-instruct
 
 Set `APP_PROVIDER=local` in `.env` and start Compose again to chat with that model. Ollama on the host instead of this service: `LOCAL_BASE_URL=http://host.docker.internal:11434/v1`.
 
-A hosted model uses the same Compose file. Set `APP_PROVIDER=remote`, `REMOTE_BASE_URL`, `REMOTE_API_KEY`, and `REMOTE_MODEL` in `.env`, then `docker compose up --build`.
+The hosted model is `gemini-2.5-flash-lite` at `https://api.gapgpt.app/v1`. Set `APP_PROVIDER=remote` in `.env` (the key stays in that file), then `docker compose up --build`.
 
 Copy `.env.example` to `.env` when you want to override a setting. `APP_PROVIDER` chooses the model: `stub` (default, no network), `local`, `remote`, or `route`. Restart the container after changing it.
 
-`route` picks local or hosted for each step from `config/models.yaml`. A short call, a customer turn, and a session that is near its hosted budget stay on the local model. A step that does not fit the local window uses the hosted model. If the chosen model fails, the other one is tried. Three failures open that model's circuit for 30 seconds. If both are down, the reply says so. The chat log records the provider, model, and reason for every step, and an identical hosted answer is reused from the cache.
+`route` picks local or hosted for each step from `config/models.yaml`. A short call, a customer turn, and a session that is near its hosted budget stay on the local model. A step that does not fit the local window uses the hosted model. If the chosen model fails, the other one is tried. Three failures open that model's circuit for 30 seconds. If both are down, that step is answered by the offline stub. The chat log records the provider, model, and reason for every step, and an identical hosted answer is reused from the cache.
 
 The stub runs the same tool loop as the other providers. A delivery-time question is answered from the orders snapshot and states the sample size. A help question cites a fixture page. A support ticket or a cancellation waits until the next message confirms it.
 
@@ -266,9 +273,9 @@ Work through the stages in order. Deliver each stage as a separate pull request 
 - [x] At least one mechanism that cuts hosted-API usage (e.g. local model for cheap steps, caching, history compression).
 
 ### Stage 10 — Testing and evaluation
-- [ ] Offline unit/integration tests for budgeting, RBAC, tool validation, statistics correctness, retrieval, routing and fallback — runnable inside the container.
-- [ ] An eval runner over `evals/scenarios.yaml` plus your own scenarios, reporting pass rate, token usage, latency and cost per model.
-- [ ] The local and hosted models compared on the same scenarios; results included in your delivery document.
+- [x] Offline unit/integration tests for budgeting, RBAC, tool validation, statistics correctness, retrieval, routing and fallback — runnable inside the container.
+- [x] An eval runner over `evals/scenarios.yaml` plus your own scenarios, reporting pass rate, token usage, latency and cost per model.
+- [x] The local and hosted models compared on the same scenarios; results included in your delivery document.
 
 ### Stage 11 — Documentation and delivery
 - [ ] `docs/DELIVERY.md` completed from `docs/DELIVERY_TEMPLATE.md`.

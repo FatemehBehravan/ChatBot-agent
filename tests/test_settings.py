@@ -46,7 +46,7 @@ def test_provider_switch_is_configuration_only(tmp_path, monkeypatch):
     monkeypatch.setenv("APP_PROVIDER", "remote")
     remote = load_config()
     assert remote.provider.type == "openai_compatible"
-    assert remote.provider.model == "replace-with-a-low-cost-model"
+    assert remote.provider.model == "gemini-2.5-flash-lite"
     assert remote.provider.context_window == 128000
 
 

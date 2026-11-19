@@ -6,6 +6,7 @@ Which one is called is entirely configuration: base URL, key, model name, and ti
 import json
 import random
 from collections.abc import Callable, Iterator
+from dataclasses import replace
 
 import httpx
 
@@ -18,6 +19,7 @@ from src.llm.errors import (
 )
 from src.llm.retry import call_with_retry
 from src.llm.tokens import estimate_tokens
+from src.llm.tool_text import tool_call_from_text
 from src.llm.types import Capabilities, ChatMessage, Completion, ToolCall
 from src.settings import ProviderConfig
 
@@ -61,7 +63,12 @@ class OpenAICompatibleClient:
         tools: list[dict] | None = None,
     ) -> Completion:
         response = self._post(self._payload(messages, max_tokens=max_tokens, stream=False, tools=tools))
-        return self._parse_completion(response)
+        completion = self._parse_completion(response)
+        if tools and not completion.tool_calls:
+            recovered = tool_call_from_text(completion.content or "", tools)
+            if recovered is not None:
+                completion = replace(completion, content="", tool_calls=(recovered,))
+        return completion
 
     def stream(
         self,

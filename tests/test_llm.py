@@ -195,6 +195,30 @@ def test_openai_client_parses_a_tool_call():
     assert completion.tool_calls[0].arguments == '{"order_id":"A-246001"}'
 
 
+def test_openai_client_reads_a_tool_call_written_as_text():
+    written = (
+        ' orm\n{"name": "estimate_delivery_time", "arguments": '
+        '{"distance_km": 5, "city": "تهران", "vehicle_type": "motorcycle"}}\n</tool_call>'
+    )
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "unit-model",
+                "choices": [{"message": {"role": "assistant", "content": written}}],
+            },
+        )
+
+    completion = _client(handler).complete(
+        [ChatMessage(role="user", content="eta")],
+        tools=[{"name": "estimate_delivery_time", "description": "Estimate.", "parameters": {"type": "object"}}],
+    )
+    assert completion.content == ""
+    assert completion.tool_calls[0].name == "estimate_delivery_time"
+    assert '"city": "تهران"' in completion.tool_calls[0].arguments
+
+
 def test_factory_switches_local_and_remote_without_code_changes(config, monkeypatch):
     stub = build_client(config)
     assert isinstance(stub, StubClient)

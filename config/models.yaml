@@ -23,7 +23,7 @@ providers:
     supports_tool_calling: true
     timeout_seconds: 30
     data_policy: masked_only      # PII must be masked before leaving the machine
-    pricing:                      # placeholder until the provider's price list is filled in
+    pricing:                      # cost estimate for gemini-2.5-flash-lite; not a provider invoice
       input_per_1m_tokens: 0.15
       output_per_1m_tokens: 0.60
 

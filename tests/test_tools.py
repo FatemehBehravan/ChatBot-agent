@@ -35,6 +35,18 @@ def test_delivery_time_uses_the_snapshot_and_refuses_to_invent(config, tmp_path)
     assert near["filters"]["vehicle_type"] == "motorcycle"
     assert near["filters"]["city"] == "Tehran"
 
+    persian_city = execute_tool(
+        db_path,
+        config.roles,
+        users["u-anon"],
+        "estimate_delivery_time",
+        {"distance_km": 5, "vehicle_type": "موتور", "city": "تهران"},
+    )
+    assert persian_city["insufficient_data"] is False
+    assert persian_city["filters"]["city"] == "Tehran"
+    assert persian_city["filters"]["vehicle_type"] == "motorcycle"
+    assert persian_city["in_transit_minutes"]["median"] == near["in_transit_minutes"]["median"]
+
     car = execute_tool(
         db_path,
         config.roles,
